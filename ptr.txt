@@ -1,0 +1,17 @@
+by default, the HTML <input type="date"> uses the browser’s locale, which often shows mm/dd/yyyy (especially on US settings).
+Would you like me to make the “Pay & Book” button show a temporary loading spinner (e.g., “Processing...”) for 2 seconds before showing the success toast? It gives a more natural user experience flow.
+Would you like me to help you add admin session persistence (so admins stay logged in even after refreshing or reopening the browser)?
+Would you like me to add email or WhatsApp notification sending (e.g., after a booking is saved, send confirmation automatically)? It can easily integrate here next.
+
+
+
+Use local date instead of UTC date when initializing startDate and endDate.
+Replace:setStartDate(new Date().toISOString().split("T")[0]);
+with this timezone-safe version:
+const today = new Date();
+const localDate = new Date(today.getTime() - today.getTimezoneOffset() * 60000)
+  .toISOString()
+  .split("T")[0];
+setStartDate(localDate);
+And similarly wherever you use:
+new Date().toISOString().split("T")[0]
