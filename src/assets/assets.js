@@ -9,7 +9,7 @@ import right_arrow from './right_arrow.svg'
 
 //import brand_img from './brand_img.png'
 import brand_img from './aboutImage.png'
-import aboutImg from "./Vayuhuu.jpg"
+import aboutImg from "./vayuhuu.jpg"
 import project_img_1 from './project_img_1.jpg'
 import project_img_2 from './project_img_2.jpg'
 import project_img_3 from './project_img_3.jpg'
