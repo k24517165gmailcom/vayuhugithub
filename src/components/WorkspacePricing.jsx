@@ -159,11 +159,15 @@ const WorkspacePricing = () => {
   const [cartOpen, setCartOpen] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/get_spaces.php`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          const formatted = data.spaces
+  fetch(`${API_BASE_URL}/get_spaces.php`)
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then((data) => {
+      if (data.success) {
+        setWorkspaces(
+          data.spaces
             .filter((i) => i.status === "Active")
             .map((i) => ({
               id: i.id,
@@ -177,19 +181,18 @@ const WorkspacePricing = () => {
               image: i.image_url,
               status: i.status || "Active",
               raw: i,
-            }));
-          setWorkspaces(formatted);
-        } else {
-          setError("No spaces found");
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setError("Failed to load workspace data");
-        setLoading(false);
-      });
-  }, [API_BASE_URL]);
+            }))
+        );
+      } else {
+        setError(data.message || "No spaces found");
+      }
+    })
+    .catch((err) => {
+      console.error("API error:", err);
+      setError("Failed to load workspace data");
+    })
+    .finally(() => setLoading(false));
+}, []);
 
   const groupedWorkspaces = useMemo(() => {
     const map = new Map();
