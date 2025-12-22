@@ -159,39 +159,62 @@ const WorkspacePricing = () => {
   const [cartOpen, setCartOpen] = useState(false);
 
   useEffect(() => {
-  fetch(`${API_BASE_URL}/get_spaces.php`)
-    .then((res) => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    })
-    .then((data) => {
-      if (data.success) {
-        setWorkspaces(
-          data.spaces
-            .filter((i) => i.status === "Active")
-            .map((i) => ({
-              id: i.id,
-              title: i.space,
-              desc: i.min_duration_desc || "",
-              type: i.space_code,
-              capacity: Number(i.capacity) || 10,
-              monthly: Number(i.per_month) || null,
-              daily: Number(i.per_day) || null,
-              hourly: Number(i.per_hour) || null,
-              image: i.image_url,
-              status: i.status || "Active",
-              raw: i,
-            }))
-        );
-      } else {
-        setError(data.message || "No spaces found");
+  const fetchWorkspaces = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/get_spaces.php`);
+
+      // 1. Check if the response is technically successful (status 200-299)
+      if (!res.ok) {
+        console.error(`❌ HTTP Error: ${res.status} ${res.statusText}`);
+        const errorText = await res.text(); // Read body as text if status is bad
+        console.log("Error body:", errorText);
+        throw new Error(`HTTP ${res.status}`);
       }
-    })
-    .catch((err) => {
+
+      // 2. Clone the response so we can read it twice if needed
+      const resClone = res.clone();
+
+      try {
+        const data = await res.json();
+        if (data.success) {
+          setWorkspaces(
+            data.spaces
+              .filter((i) => i.status === "Active")
+              .map((i) => ({
+                id: i.id,
+                title: i.space,
+                desc: i.min_duration_desc || "",
+                type: i.space_code,
+                capacity: Number(i.capacity) || 10,
+                monthly: Number(i.per_month) || null,
+                daily: Number(i.per_day) || null,
+                hourly: Number(i.per_hour) || null,
+                image: i.image_url,
+                status: i.status || "Active",
+                raw: i,
+              }))
+          );
+        } else {
+          setError(data.message || "No spaces found");
+        }
+      } catch (jsonErr) {
+        // 3. If parsing JSON fails, log the raw text content instead
+        const rawText = await resClone.text();
+        console.group("🔍 Backend Response Debug");
+        console.error("JSON Parsing failed. Received instead:");
+        console.log(rawText);
+        console.groupEnd();
+        setError("Invalid data format received from server.");
+      }
+    } catch (err) {
       console.error("API error:", err);
       setError("Failed to load workspace data");
-    })
-    .finally(() => setLoading(false));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchWorkspaces();
 }, []);
 
   const groupedWorkspaces = useMemo(() => {
