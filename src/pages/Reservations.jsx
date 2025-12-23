@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Layout from "../components/Layout";
+import axios from "axios"; // ✅ Imported Axios
 
 const Reservations = () => {
   const [bookings, setBookings] = useState([]);
@@ -8,6 +9,8 @@ const Reservations = () => {
 
   const user = JSON.parse(localStorage.getItem("user"));
   const userId = user?.id;
+  // ✅ Retrieve Bearer Token for Authorization
+  const token = localStorage.getItem("token");
 
   useEffect(() => {
     if (!userId) {
@@ -21,28 +24,37 @@ const Reservations = () => {
         const API_BASE =
           import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
 
-        const response = await fetch(`${API_BASE}/get_workspace_bookings.php`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId }),
-        });
+        // ✅ Switched to Axios POST request
+        const response = await axios.post(
+          `${API_BASE}/get_workspace_bookings.php`,
+          { user_id: userId }, // Axios handles JSON stringification automatically
+          {
+            headers: {
+              "Content-Type": "application/json",
+              // ✅ Added Bearer Token to headers
+              Authorization: token ? `Bearer ${token}` : "",
+            },
+          }
+        );
 
-        const data = await response.json();
+        const data = response.data; // Axios stores response in .data
 
-        if (!response.ok || !data.success) {
+        if (!data.success) {
           throw new Error(data.message || "Failed to load reservations.");
         }
 
         setBookings(data.bookings);
       } catch (err) {
-        setError(err.message);
+        // Axios error handling looks into response.data.message
+        const errorMessage = err.response?.data?.message || err.message;
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
     };
 
     fetchBookings();
-  }, [userId]);
+  }, [userId, token]); // ✅ Added token to dependency array
 
   return (
     <Layout>
@@ -77,7 +89,7 @@ const Reservations = () => {
                   {[
                     "S.No.",
                     "Space",
-                    "Space Code", // NEW COLUMN
+                    "Space Code",
                     "Pack",
                     "Date",
                     "Timings",
@@ -106,7 +118,6 @@ const Reservations = () => {
                       <td className="p-2 border">{index + 1}</td>
                       <td className="p-2 border">{booking.workspace_title}</td>
 
-                      {/* 🟡 THIS IS THE FIX: Check seat_codes first, fallback to space_code */}
                       <td className="p-2 border">
                         {booking.seat_codes ? (
                           <span className="bg-orange-50 text-orange-700 px-2 py-0.5 rounded border border-orange-100 font-medium">

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import ReactQuill from "react-quill";
+import axios from "axios"; // ✅ Imported Axios
 import "react-quill/dist/quill.snow.css";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -76,7 +77,7 @@ const AddBlog = () => {
   };
 
   // -------------------------
-  // ✅ Submit Handler (with JWT Authorization)
+  // ✅ Submit Handler (with JWT Authorization & Axios)
   // -------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -98,29 +99,26 @@ const AddBlog = () => {
       payload.append("blog_description", form.blog_description);
       payload.append("blog_image", image);
 
-      const res = await fetch(`${API_URL}/add_blog.php`, {
-        method: "POST",
+      // ✅ Switched to Axios for better header management
+      const res = await axios.post(`${API_BASE}/add_blog.php`, payload, {
         headers: {
           Authorization: `Bearer ${token}`, // ✅ Send JWT Token
+          // Note: Axios sets Content-Type automatically for FormData
         },
-        body: payload,
       });
 
-      let data;
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error("Invalid server response");
-      }
+      const data = res.data; // Axios response data
 
-      if (res.ok && data.success) {
+      if (data.success) {
         toast.success("Blog added successfully!");
         setTimeout(() => navigate("/admin/blog-list"), 700);
       } else {
         toast.error(data?.message || "Failed to add blog");
       }
     } catch (err) {
-      toast.error(err.message || "Error submitting blog");
+      // Axios stores server error responses in err.response.data
+      const errorMsg = err.response?.data?.message || "Error submitting blog";
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -156,7 +154,6 @@ const AddBlog = () => {
                 onChange={handleChange}
                 className="w-full border border-orange-400 rounded px-3 py-2"
                 placeholder="Enter Your Name..."
-                 // ✅ Optional: Prevent editing if filled automatically
               />
             </div>
 

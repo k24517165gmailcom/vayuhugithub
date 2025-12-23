@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios"; // ✅ Imported Axios
 
 const AdminLogin = () => {
   const [email, setEmail] = useState("");
@@ -14,21 +15,20 @@ const AdminLogin = () => {
     e.preventDefault();
     setMessage("");
 
-    const url = `${API_BASE}/admin_login.php`; // ✅ use environment variable
+    const url = `${API_BASE}/admin_login.php`;
     const payload = { email, password };
 
-    console.log("Submitting admin login form:", payload);
+    console.log("Submitting admin login form via Axios:", payload);
 
     try {
-      const response = await fetch(url, {
-        method: "POST",
+      // ✅ Using Axios POST request
+      const response = await axios.post(url, payload, {
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
       });
 
-      console.log("Raw response:", response);
+      console.log("Axios response:", response);
 
-      const result = await response.json();
+      const result = response.data; // Axios automatically parses JSON
       console.log("Parsed response:", result);
 
       setMessage(result.message);
@@ -51,7 +51,9 @@ const AdminLogin = () => {
       }
     } catch (error) {
       console.error("Admin login error:", error);
-      setMessage("Something went wrong. Please try again.");
+      // ✅ Improved error messaging for Axios
+      const errorMsg = error.response?.data?.message || "Something went wrong. Please try again.";
+      setMessage(errorMsg);
     }
   };
 

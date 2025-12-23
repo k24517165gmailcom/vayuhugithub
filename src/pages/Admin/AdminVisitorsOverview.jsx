@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { X, Plus } from "lucide-react"; 
+import axios from "axios"; // ✅ Imported Axios
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
-
-// Placeholder: In a real app, get this from your Auth Context or LocalStorage
-const CURRENT_ADMIN_ID = 3;
 
 const AdminVisitorsOverview = () => {
   const [visitors, setVisitors] = useState([]);
@@ -14,6 +12,11 @@ const AdminVisitorsOverview = () => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // ✅ Get Auth Data from LocalStorage
+  const token = localStorage.getItem("token");
+  const adminData = JSON.parse(localStorage.getItem("admin") || "{}");
+  const CURRENT_ADMIN_ID = adminData.id || 3;
 
   // Form State
   const initialFormState = {
@@ -34,8 +37,13 @@ const AdminVisitorsOverview = () => {
     if(visitors.length === 0) setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/get_all_visitors.php`);
-      const data = await res.json();
+      // ✅ Using Axios with Authorization Header
+      const res = await axios.get(`${API_URL}/get_all_visitors.php`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        }
+      });
+      const data = res.data;
 
       if (!data.success) {
         setMessage(data.message || "Failed to load visitors");
@@ -45,7 +53,8 @@ const AdminVisitorsOverview = () => {
       setVisitors(data.visitors);
     } catch (err) {
       console.error("Error fetching visitors:", err);
-      setMessage("Something went wrong while fetching visitors.");
+      const errorMsg = err.response?.data?.message || "Something went wrong while fetching visitors.";
+      setMessage(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -75,13 +84,14 @@ const AdminVisitorsOverview = () => {
         user_id: null 
       };
 
-      // CHANGE IS HERE: Updated filename to admin_add_visitor.php
-      const res = await fetch(`${API_URL}/admin_add_visitor.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      // ✅ Using Axios POST with Authorization Header
+      const res = await axios.post(`${API_URL}/admin_add_visitor.php`, payload, {
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
       });
-      const result = await res.json();
+      const result = res.data;
 
       if (result.success) {
         setIsModalOpen(false);
@@ -94,7 +104,8 @@ const AdminVisitorsOverview = () => {
       }
     } catch (error) {
       console.error("Error adding visitor:", error);
-      alert("Failed to connect to server.");
+      const errorMsg = error.response?.data?.message || "Failed to connect to server.";
+      alert(errorMsg);
     } finally {
       setSubmitting(false);
     }

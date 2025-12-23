@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast, ToastContainer } from "react-toastify";
+import axios from "axios"; // ✅ Added Axios
 import "react-toastify/dist/ReactToastify.css";
 import { useCart } from "../context/CartContext";
 import CartDrawer from "../components/CartDrawer";
@@ -158,64 +159,42 @@ const WorkspacePricing = () => {
   const { addToCart } = useCart();
   const [cartOpen, setCartOpen] = useState(false);
 
+  // ✅ Retrieve Bearer Token
+  const token = localStorage.getItem("token");
+
   useEffect(() => {
-  const fetchWorkspaces = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/get_spaces.php`);
-
-      // 1. Check if the response is technically successful (status 200-299)
-      if (!res.ok) {
-        console.error(`❌ HTTP Error: ${res.status} ${res.statusText}`);
-        const errorText = await res.text(); // Read body as text if status is bad
-        console.log("Error body:", errorText);
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      // 2. Clone the response so we can read it twice if needed
-      const resClone = res.clone();
-
-      try {
-        const data = await res.json();
+    // ✅ Switched to Axios
+    axios.get(`${API_BASE_URL}/get_spaces.php`)
+      .then((response) => {
+        const data = response.data;
         if (data.success) {
-          setWorkspaces(
-            data.spaces
-              .filter((i) => i.status === "Active")
-              .map((i) => ({
-                id: i.id,
-                title: i.space,
-                desc: i.min_duration_desc || "",
-                type: i.space_code,
-                capacity: Number(i.capacity) || 10,
-                monthly: Number(i.per_month) || null,
-                daily: Number(i.per_day) || null,
-                hourly: Number(i.per_hour) || null,
-                image: i.image_url,
-                status: i.status || "Active",
-                raw: i,
-              }))
-          );
+          const formatted = data.spaces
+            .filter((i) => i.status === "Active")
+            .map((i) => ({
+              id: i.id,
+              title: i.space,
+              desc: i.min_duration_desc || "",
+              type: i.space_code,
+              capacity: Number(i.capacity) || 10,
+              monthly: Number(i.per_month) || null,
+              daily: Number(i.per_day) || null,
+              hourly: Number(i.per_hour) || null,
+              image: i.image_url,
+              status: i.status || "Active",
+              raw: i,
+            }));
+          setWorkspaces(formatted);
         } else {
-          setError(data.message || "No spaces found");
+          setError("No spaces found");
         }
-      } catch (jsonErr) {
-        // 3. If parsing JSON fails, log the raw text content instead
-        const rawText = await resClone.text();
-        console.group("🔍 Backend Response Debug");
-        console.error("JSON Parsing failed. Received instead:");
-        console.log(rawText);
-        console.groupEnd();
-        setError("Invalid data format received from server.");
-      }
-    } catch (err) {
-      console.error("API error:", err);
-      setError("Failed to load workspace data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  fetchWorkspaces();
-}, []);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError("Failed to load workspace data");
+        setLoading(false);
+      });
+  }, [API_BASE_URL]);
 
   const groupedWorkspaces = useMemo(() => {
     const map = new Map();
@@ -289,19 +268,21 @@ const WorkspacePricing = () => {
     if (!coupon) return toast.error("Please enter a coupon code");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/apply_coupon.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // ✅ Switched to Axios with Authorization header
+      const res = await axios.post(`${API_BASE_URL}/apply_coupon.php`, {
           coupon_code: coupon,
           workspace_title: modalData?.title,
           plan_type: modalData?.planType,
           total_amount: calculateBaseAmount(),
           user_id: getUserId(),
-        }),
+        }, {
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "" 
+        }
       });
 
-      const data = await res.json();
+      const data = res.data;
 
       if (data.success) {
         setDiscount(Number(data.discount_amount || 0));
@@ -511,24 +492,23 @@ const WorkspacePricing = () => {
         checkEndDate = startDate;
       }
 
-      const response = await fetch(
-        `${API_BASE_URL}/check_workspace_availability.php`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            space_id: modalData.id,
-            plan_type: modalData.planType.toLowerCase(),
-            start_date: startDate,
-            end_date: checkEndDate,
-            start_time: startTime,
-            end_time: endTime,
-            all_space_ids: modalData.allIds || [modalData.id],
-          }),
+      // ✅ Switched to Axios with Authorization header
+      const response = await axios.post(`${API_BASE_URL}/check_workspace_availability.php`, {
+          space_id: modalData.id,
+          plan_type: modalData.planType.toLowerCase(),
+          start_date: startDate,
+          end_date: checkEndDate,
+          start_time: startTime,
+          end_time: endTime,
+          all_space_ids: modalData.allIds || [modalData.id],
+        }, {
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : ""
         }
-      );
+      });
 
-      const data = await response.json();
+      const data = response.data;
       toast.dismiss(toastId);
 
       if (data.success) {
@@ -678,20 +658,18 @@ const WorkspacePricing = () => {
           {groupedWorkspaces.map((group, idx) => (
             <motion.div
               key={`${group.title}-${idx}`}
-              // --- START ANIMATION CHANGES ---
-              initial={{ opacity: 0, y: 50 }} // Start invisible and slightly lower
-              whileInView={{ opacity: 1, y: 0 }} // Animate to visible and original position
-              viewport={{ once: true, amount: 0.2 }} // Trigger when 20% of element is in view, only once
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
               transition={{
                 duration: 0.5,
-                delay: idx * 0.1, // Stagger effect: 0.1s delay per item
+                delay: idx * 0.1,
                 ease: "easeOut",
               }}
               whileHover={{
                 scale: 1.03,
-                transition: { duration: 0.2, delay: 0 }, // Reset delay for hover so it feels snappy
+                transition: { duration: 0.2, delay: 0 },
               }}
-              // --- END ANIMATION CHANGES ---
               className="relative rounded-2xl overflow-hidden shadow-lg border border-gray-200"
             >
               <img
@@ -929,22 +907,17 @@ const WorkspacePricing = () => {
                       return;
                     }
                     // Check if selected day is Sunday
-                    const day = new Date(dateStr).getUTCDay(); // getUTCDay() works best for date inputs (YYYY-MM-DD parses to UTC)
+                    const day = new Date(dateStr).getUTCDay(); 
                     if (day === 0) {
                       toast.error(
                         "Workspaces are closed on Sundays. Please select another date."
                       );
-                      setStartDate(""); // Clear the invalid selection
+                      setStartDate(""); 
                     } else {
                       setStartDate(dateStr);
                     }
                   }}
                   min={new Date().toISOString().split("T")[0]}
-                  max={() => {
-                    const maxDate = new Date();
-                    maxDate.setMonth(maxDate.getMonth() + 2);
-                    return maxDate.toISOString().split("T")[0];
-                  }}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-4"
                 />
                 <p className="text-sm text-gray-500 mb-3">
@@ -1435,7 +1408,7 @@ const WorkspacePricing = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-between mt-6">
+                <div className="flex justify-between mt-6 gap-2 flex-wrap">
                   <button
                     onClick={() => setStep(2)}
                     className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
@@ -1470,218 +1443,122 @@ const WorkspacePricing = () => {
 
                   <button
                     onClick={async () => {
-                      const availabilityResponse = await fetch(
-                        `${API_BASE_URL}/check_workspace_availability.php`,
-                        {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
+                      // ✅ Start of Pay & Book logical chain using Axios
+                      try {
+                        const availabilityResponse = await axios.post(`${API_BASE_URL}/check_workspace_availability.php`, {
+                          space_id: modalData.id,
+                          plan_type: modalData.planType.toLowerCase(),
+                          start_date: startDate,
+                          end_date: endDate,
+                          start_time: startTime,
+                          end_time: endTime,
+                          all_space_ids: modalData.allIds || [modalData.id],
+                        }, { headers: { Authorization: token ? `Bearer ${token}` : "" } });
+
+                        const availData = availabilityResponse.data;
+
+                        if (!availData.success) {
+                          if (availData.available_slots?.length) {
+                            const slots = availData.available_slots.map((slot) => `• ${slot}`).join("\n");
+                            toast.error(`${availData.message}\n\nAvailable Slots:\n${slots}`, { autoClose: 5000 });
+                          } else {
+                            toast.error(availData.message);
+                          }
+                          return;
+                        }
+
+                        // Load Razorpay Script
+                        const script = document.createElement("script");
+                        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+                        script.onload = async () => {
+                          const bookingData = {
+                            user_id: getUserId(),
                             space_id: modalData.id,
-                            plan_type: modalData.planType.toLowerCase(),
+                            all_space_ids: modalData.allIds || [modalData.id],
+                            workspace_title: modalData.title,
+                            plan_type: modalData.planType,
                             start_date: startDate,
                             end_date: endDate,
-                            start_time: startTime,
-                            end_time: endTime,
-                            all_space_ids: modalData.allIds || [modalData.id],
-                          }),
-                        }
-                      ).then((res) => res.json());
+                            start_time: startTime || null,
+                            end_time: endTime || null,
+                            total_days: days,
+                            total_hours: totalHours,
+                            num_attendees: numAttendees,
+                            price_per_unit: modalData.price,
+                            base_amount: displayAmount,
+                            gst_amount: parseFloat(displayGst),
+                            discount_amount: discount,
+                            final_amount: parseFloat(finalTotal),
+                            coupon_code: coupon || null,
+                            referral_source: referral || null,
+                            terms_accepted: 1,
+                            seat_codes: modalData.selectedCodes,
+                          };
 
-                      if (!availabilityResponse.success) {
-                        if (availabilityResponse.available_slots?.length) {
-                          const slots = availabilityResponse.available_slots
-                            .map((slot) => `• ${slot}`)
-                            .join("\n");
+                          // 1. Create Razorpay Order
+                          const orderRes = await axios.post(`${API_BASE_URL}/create_razorpay_order.php`, {
+                            amount: bookingData.final_amount,
+                          }, { headers: { Authorization: token ? `Bearer ${token}` : "" } });
 
-                          toast.error(
-                            `${availabilityResponse.message}\n\nAvailable Slots:\n${slots}`,
-                            { autoClose: 5000 }
-                          );
-                        } else {
-                          toast.error(availabilityResponse.message);
-                        }
-                        return;
-                      }
-
-                      const loadRazorpayScript = () => {
-                        return new Promise((resolve) => {
-                          if (window.Razorpay) {
-                            resolve(true);
-                            return;
-                          }
-                          const script = document.createElement("script");
-                          script.src =
-                            "https://checkout.razorpay.com/v1/checkout.js";
-                          script.onload = () => resolve(true);
-                          script.onerror = () => resolve(false);
-                          document.body.appendChild(script);
-                        });
-                      };
-
-                      const loaded = await loadRazorpayScript();
-                      if (!loaded) {
-                        toast.error(
-                          "Razorpay SDK failed to load. Check your internet connection."
-                        );
-                        return;
-                      }
-
-                      const bookingData = {
-                        user_id: getUserId(),
-                        space_id: modalData.id,
-                        all_space_ids: modalData.allIds || [modalData.id],
-                        workspace_title: modalData.title,
-                        plan_type: modalData.planType,
-                        start_date: startDate,
-                        end_date: endDate,
-                        start_time: startTime || null,
-                        end_time: endTime || null,
-                        total_days: days,
-                        total_hours: totalHours,
-                        num_attendees: numAttendees,
-                        price_per_unit: modalData.price,
-                        base_amount: displayAmount,
-                        gst_amount: parseFloat(displayGst),
-                        discount_amount: discount,
-                        final_amount: parseFloat(finalTotal),
-                        coupon_code: coupon || null,
-                        referral_source: referral || null,
-                        terms_accepted: termsAccepted ? 1 : 0,
-                        seat_codes: modalData.selectedCodes,
-                      };
-
-                      fetch(`${API_BASE_URL}/create_razorpay_order.php`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          amount: bookingData.final_amount,
-                        }),
-                      })
-                        .then((res) => res.json())
-                        .then((data) => {
-                          if (!data.success) throw new Error(data.message);
+                          const orderData = orderRes.data;
+                          if (!orderData.success) throw new Error(orderData.message);
 
                           const options = {
-                            key: data.key,
+                            key: orderData.key,
                             amount: bookingData.final_amount * 100,
                             currency: "INR",
                             name: "Vayuhu Workspaces",
                             description: `${modalData.title} Booking`,
-                            order_id: data.order_id,
-                            handler: function (response) {
-                              fetch(`${API_BASE_URL}/verify_payment.php`, {
-                                method: "POST",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                },
-                                body: JSON.stringify(response),
-                              })
-                                .then((res) => res.json())
-                                .then((verify) => {
-                                  if (verify.success) {
-                                    // 🟢 Add booking
-                                    fetch(
-                                      `${API_BASE_URL}/add_workspace_booking.php`,
-                                      {
-                                        method: "POST",
-                                        headers: {
-                                          "Content-Type": "application/json",
-                                        },
-                                        body: JSON.stringify(bookingData),
-                                      }
-                                    )
-                                      .then((r) => r.json())
-                                      .then((result) => {
-                                        if (result.success) {
-                                          toast.success(
-                                            "🎉 Booking confirmed! Sending confirmation email..."
-                                          );
+                            order_id: orderData.order_id,
+                            handler: async (response) => {
+                              // 2. Verify Payment
+                              const verifyRes = await axios.post(`${API_BASE_URL}/verify_payment.php`, response, {
+                                headers: { Authorization: token ? `Bearer ${token}` : "" }
+                              });
 
-                                          // 🟢 Gather user info and booking ID
-                                          const userData = JSON.parse(
-                                            localStorage.getItem("user")
-                                          );
-                                          const userName =
-                                            userData?.name || "Customer";
-                                          const newBookingId =
-                                            result.booking_id || result.id || 0;
-
-                                          // 🟢 Send Email with Name and ID
-                                          fetch(
-                                            `${API_BASE_URL}/send_booking_email.php`,
-                                            {
-                                              method: "POST",
-                                              headers: {
-                                                "Content-Type":
-                                                  "application/json",
-                                              },
-                                              body: JSON.stringify({
-                                                booking_id: newBookingId,
-                                                user_name: userName,
-                                                user_id: getUserId(),
-                                                user_email:
-                                                  userData?.email || "",
-                                                workspace_title:
-                                                  modalData.title,
-                                                plan_type: modalData.planType,
-                                                start_date: startDate,
-                                                end_date: endDate,
-                                                start_time: startTime,
-                                                end_time: endTime,
-                                                total_amount: finalTotal,
-                                                coupon_code: coupon || null,
-                                                referral_source:
-                                                  referral || null,
-                                                seat_codes:
-                                                  modalData.selectedCodes,
-                                              }),
-                                            }
-                                          )
-                                            .then((res) => res.json())
-                                            .then((emailRes) => {
-                                              if (emailRes.success) {
-                                                toast.success(
-                                                  "📧 Confirmation email sent!"
-                                                );
-                                              } else {
-                                                console.error(emailRes);
-                                                toast.warn(
-                                                  "Booking saved, but email failed: " +
-                                                    emailRes.message
-                                                );
-                                              }
-                                            })
-                                            .catch((err) => {
-                                              console.error(
-                                                "Email error:",
-                                                err
-                                              );
-                                              toast.warn(
-                                                "Booking saved, but email sending failed."
-                                              );
-                                            });
-
-                                          setTimeout(() => resetState(), 2000);
-                                        } else {
-                                          toast.error(
-                                            result.message || "Booking failed"
-                                          );
-                                        }
-                                      });
-                                  } else {
-                                    toast.error("Payment verification failed!");
-                                  }
+                              if (verifyRes.data.success) {
+                                // 3. Finalize Booking
+                                const finalBooking = await axios.post(`${API_BASE_URL}/add_workspace_booking.php`, bookingData, {
+                                  headers: { Authorization: token ? `Bearer ${token}` : "" }
                                 });
+
+                                if (finalBooking.data.success) {
+                                  toast.success("🎉 Booking confirmed!");
+                                  const userData = JSON.parse(localStorage.getItem("user"));
+                                  const bookingId = finalBooking.data.booking_id || finalBooking.data.id || 0;
+
+                                  // 4. Send Confirmation Email
+                                  await axios.post(`${API_BASE_URL}/send_booking_email.php`, {
+                                    booking_id: bookingId,
+                                    user_name: userData?.name || "Customer",
+                                    user_id: getUserId(),
+                                    user_email: userData?.email || "",
+                                    workspace_title: modalData.title,
+                                    plan_type: modalData.planType,
+                                    start_date: startDate,
+                                    end_date: endDate,
+                                    start_time: startTime,
+                                    end_time: endTime,
+                                    total_amount: finalTotal,
+                                    seat_codes: modalData.selectedCodes,
+                                  }, { headers: { Authorization: token ? `Bearer ${token}` : "" } });
+
+                                  setTimeout(() => resetState(), 2000);
+                                } else {
+                                  toast.error(finalBooking.data.message || "Booking registration failed");
+                                }
+                              } else {
+                                toast.error("Payment verification failed!");
+                              }
                             },
                             theme: { color: "#F97316" },
                           };
-
-                          const rzp = new window.Razorpay(options);
-                          rzp.open();
-                        })
-                        .catch((err) => {
-                          toast.error("Payment setup failed: " + err.message);
-                        });
+                          new window.Razorpay(options).open();
+                        };
+                        document.body.appendChild(script);
+                      } catch (err) {
+                        toast.error("Process failed: " + (err.response?.data?.message || err.message));
+                      }
                     }}
                     className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
                   >

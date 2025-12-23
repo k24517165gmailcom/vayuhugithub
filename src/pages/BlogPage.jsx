@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios"; // ✅ Added Axios for Bearer Token support
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
 
@@ -10,9 +11,18 @@ const BlogPage = () => {
 
     const fetchBlogs = async () => {
         try {
-            // ✅ Added nocache param to prevent cached data
-            const res = await fetch(`${API_URL}/blog_list.php?nocache=${Date.now()}`);
-            const data = await res.json();
+            // ✅ Retrieve token from localStorage
+            const token = localStorage.getItem("token");
+
+            // ✅ Switched to Axios to send Bearer Token
+            const res = await axios.get(`${API_URL}/blog_list.php`, {
+                params: { nocache: Date.now() },
+                headers: {
+                    Authorization: token ? `Bearer ${token}` : "", // ✅ Bearer Token added
+                },
+            });
+
+            const data = res.data; // Axios puts response in .data
 
             if (data.success) {
                 // Filter blogs with status "active" (case-insensitive)

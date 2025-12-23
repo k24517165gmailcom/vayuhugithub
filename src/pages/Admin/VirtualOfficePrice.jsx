@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import axios from "axios"; // ✅ Imported Axios
 import EditVirtualOfficePriceModal from "./EditVirtualOfficePriceModal";
 
 // ✅ Vite environment variable
@@ -11,6 +12,9 @@ const VirtualOfficePrice = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
+  // ✅ Get token from localStorage
+  const token = localStorage.getItem("token");
+
   const statusColors = {
     Active: "text-green-600 bg-green-100",
     Inactive: "text-red-600 bg-red-100",
@@ -18,8 +22,14 @@ const VirtualOfficePrice = () => {
 
   const fetchPrices = async () => {
     try {
-      const response = await fetch(`${API_URL}/get_virtual_office_price_list.php`);
-      const result = await response.json();
+      // ✅ Using Axios with Authorization Header
+      const response = await axios.get(`${API_URL}/get_virtual_office_price_list.php`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+
+      const result = response.data;
       if (result.status === "success") {
         setPriceList(result.data || []);
       } else {
@@ -27,7 +37,8 @@ const VirtualOfficePrice = () => {
       }
     } catch (error) {
       console.error("Error fetching prices:", error);
-      toast.error("Error loading prices.");
+      const errorMsg = error.response?.data?.message || "Error loading prices.";
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -39,12 +50,15 @@ const VirtualOfficePrice = () => {
 
   const handleUpdate = async (updatedData) => {
     try {
-      const response = await fetch(`${API_URL}/update_virtual_office_price.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedData),
+      // ✅ Using Axios POST with Authorization Header
+      const response = await axios.post(`${API_URL}/update_virtual_office_price.php`, updatedData, {
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
       });
-      const result = await response.json();
+
+      const result = response.data;
       if (result.status === "success") {
         toast.success("Price updated successfully!");
         setShowModal(false);
@@ -54,7 +68,8 @@ const VirtualOfficePrice = () => {
       }
     } catch (error) {
       console.error("Error updating price:", error);
-      toast.error("Network error.");
+      const errorMsg = error.response?.data?.message || "Network error.";
+      toast.error(errorMsg);
     }
   };
 

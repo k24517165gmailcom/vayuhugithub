@@ -8,7 +8,7 @@ import Footer from "../components/Footer";
 import WorkspacePricing from "../components/WorkspacePricing";
 
 // IMPORT THE PROMO COMPONENT
-//import CoworkingPromo from "../components/CoworkingPromo";
+import CoworkingPromo from "../components/CoworkingPromo";
 import Amenities from "../components/Amenities";
 
 const Home = () => {
@@ -30,7 +30,7 @@ const Home = () => {
   return (
     <>
       {/* ---------- POPUP MODAL ----------- */}
-      {/*{showPopup && (
+      {showPopup && (
         <div
           className="
             fixed inset-0 bg-black/60 
@@ -44,7 +44,7 @@ const Home = () => {
               max-w-4xl w-[95%] overflow-hidden
             "
           >
-            
+            {/* Close Button */}
             <button
               className="
                 absolute top-3 right-3 bg-black text-white 
@@ -56,7 +56,7 @@ const Home = () => {
               ✕
             </button>
 
-           
+            {/* The Promo Component */}
             <CoworkingPromo />
           </div>
         </div>

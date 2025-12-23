@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios"; // ✅ Imported Axios
 
 const AddContact = () => {
   const navigate = useNavigate();
@@ -20,22 +21,31 @@ const AddContact = () => {
     e.preventDefault();
     setMessage("");
 
+    // ✅ Get token from localStorage
+    const token = localStorage.getItem("token");
+
     try {
-      const response = await fetch(`${API_BASE}/add_contact.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+      // ✅ Using Axios for POST request
+      const response = await axios.post(`${API_BASE}/add_contact.php`, formData, {
+        headers: { 
+          "Content-Type": "application/json",
+          // ✅ Added Bearer Token to headers
+          "Authorization": token ? `Bearer ${token}` : "" 
+        },
       });
 
-      const result = await response.json();
+      // ✅ Axios stores response in .data
+      const result = response.data;
       setMessage(result.message);
 
-      if (result.status === "success") {
+      if (result.status === "success" || result.success === true) {
         setFormData({ name: "", email: "", phone: "" });
       }
     } catch (error) {
       console.error("Error:", error);
-      setMessage("Something went wrong. Please try again.");
+      // ✅ Handle Axios specific error messages
+      const errorMsg = error.response?.data?.message || "Something went wrong. Please try again.";
+      setMessage(errorMsg);
     }
   };
 

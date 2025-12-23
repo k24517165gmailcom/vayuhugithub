@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { toast, ToastContainer } from "react-toastify";
+import axios from "axios"; // ✅ Added Axios
 import "react-toastify/dist/ReactToastify.css";
 
 // ✅ Use environment variable
@@ -15,8 +16,11 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [userId, setUserId] = useState(null);
-  const [userEmail, setUserEmail] = useState(""); // Needed for Razorpay prefill
-  const [userName, setUserName] = useState(""); // Needed for Razorpay prefill
+  const [userEmail, setUserEmail] = useState(""); 
+  const [userName, setUserName] = useState("");
+
+  // ✅ Retrieve Bearer Token
+  const token = localStorage.getItem("token");
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -58,15 +62,15 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  // ✅ Fetch plan details dynamically
+  // ✅ Fetch plan details dynamically using Axios
   useEffect(() => {
     const fetchPlan = async () => {
       try {
-        const response = await fetch(
-          `${API_URL}/get_virtual_office_price_list.php`
-        );
-        const data = await response.json();
-
+        const response = await axios.get(`${API_URL}/get_virtual_office_price_list.php`, {
+          headers: { Authorization: token ? `Bearer ${token}` : "" }
+        });
+        
+        const data = response.data;
         if (data.status === "success" && data.data.length > 0) {
           const planData = data.data[0];
           setPlan(planData.min_duration);
@@ -81,7 +85,7 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
     };
 
     if (isOpen) fetchPlan();
-  }, [isOpen]);
+  }, [isOpen, token]);
 
   // ✅ Auto-calculate End Date
   useEffect(() => {
@@ -116,8 +120,6 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ Handle Razorpay Payment Flow
-  // ✅ Handle Razorpay Payment Flow
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -125,30 +127,18 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
     setLoading(true);
 
     try {
-      // ---------------------------------------------------------
-      // 🛑 STEP 1: PRE-CHECK USING SAME ENDPOINT
-      // ---------------------------------------------------------
-      const checkResponse = await fetch(
-        `${API_URL}/virtualoffice_booking.php`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: userId,
-            check_only: true, // 👈 Checks eligibility without booking
-          }),
-        }
+      // 🛑 STEP 1: PRE-CHECK USING AXIOS
+      const checkResponse = await axios.post(`${API_URL}/virtualoffice_booking.php`, 
+        { user_id: userId, check_only: true },
+        { headers: { Authorization: token ? `Bearer ${token}` : "" } }
       );
 
-      const checkData = await checkResponse.json();
-
-      // If success is false, it means they already have a booking
+      const checkData = checkResponse.data;
       if (!checkData.success) {
-        toast.info(`ℹ️ ${checkData.message}`); // "You already have an active booking"
+        toast.info(`ℹ️ ${checkData.message}`);
         setLoading(false);
-        return; // Stop here. No payment popup.
+        return;
       }
-      // ---------------------------------------------------------
 
       // 2. Load Razorpay Script
       const isScriptLoaded = await loadRazorpayScript();
@@ -158,17 +148,13 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
         return;
       }
 
-      // 3. Create Order
-      const orderResponse = await fetch(
-        `${API_URL}/create_razorpay_order.php`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amount: price }),
-        }
+      // 3. Create Order using Axios
+      const orderResponse = await axios.post(`${API_URL}/create_razorpay_order.php`, 
+        { amount: price },
+        { headers: { Authorization: token ? `Bearer ${token}` : "" } }
       );
 
-      const orderData = await orderResponse.json();
+      const orderData = orderResponse.data;
       if (!orderData.success) throw new Error(orderData.message);
 
       // 4. Open Payment
@@ -180,19 +166,13 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
         description: "Virtual Office - 1 Year",
         order_id: orderData.order_id,
         handler: async function (response) {
-          // Payment Success -> Verify -> Save
           try {
-            const verifyResponse = await fetch(
-              `${API_URL}/verify_payment.php`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(response),
-              }
-            );
+            // Verify Payment using Axios
+            const verifyResponse = await axios.post(`${API_URL}/verify_payment.php`, response, {
+              headers: { Authorization: token ? `Bearer ${token}` : "" }
+            });
 
-            const verifyData = await verifyResponse.json();
-
+            const verifyData = verifyResponse.data;
             if (verifyData.success) {
               await saveBooking(response.razorpay_payment_id);
             } else {
@@ -202,10 +182,7 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
             toast.error("⚠️ Error verifying payment.");
           }
         },
-        prefill: {
-          name: userName,
-          email: userEmail,
-        },
+        prefill: { name: userName, email: userEmail },
         theme: { color: "#F97316" },
       };
 
@@ -217,41 +194,34 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
       });
     } catch (error) {
       console.error(error);
-      toast.error("Something went wrong.");
+      const msg = error.response?.data?.message || "Something went wrong.";
+      toast.error(msg);
     } finally {
-      // Only stop loading if we hit an error before opening Razorpay
       if (!document.getElementsByClassName("razorpay-container").length) {
-        // setLoading(false); // Optional: keep loading true while modal opens
+        setLoading(false);
       }
     }
   };
 
-  // ✅ Save Booking Function (Called after payment success)
+  // ✅ Save Booking Function using Axios
   const saveBooking = async (paymentId) => {
     try {
-      const response = await fetch(`${API_URL}/virtualoffice_booking.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: userId,
-          start_date: startDate,
-          end_date: endDate,
-          price: price,
-          total_years: 1,
-          payment_id: paymentId, // Send payment ID to backend
-          payment_status: "Paid",
-        }),
+      const response = await axios.post(`${API_URL}/virtualoffice_booking.php`, {
+        user_id: userId,
+        start_date: startDate,
+        end_date: endDate,
+        price: price,
+        total_years: 1,
+        payment_id: paymentId,
+        payment_status: "Paid",
+      }, {
+        headers: { Authorization: token ? `Bearer ${token}` : "" }
       });
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (
-        data.message &&
-        data.message.toLowerCase().includes("already booked")
-      ) {
-        toast.info(
-          "ℹ️ Booking exists, but payment was collected. Please contact support."
-        );
+      if (data.message && data.message.toLowerCase().includes("already booked")) {
+        toast.info("ℹ️ Booking exists, but payment was collected. Please contact support.");
         onClose();
         return;
       }
@@ -268,9 +238,7 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
       }
     } catch (error) {
       console.error("Booking save error:", error);
-      toast.error(
-        "⚠️ Payment succeeded but booking failed to save. Contact support."
-      );
+      toast.error("⚠️ Payment succeeded but booking failed to save. Contact support.");
     }
   };
 
@@ -302,8 +270,7 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
               </button>
 
               <h2 className="text-2xl font-semibold text-center text-gray-800 mb-6">
-                Book Your{" "}
-                <span className="text-orange-500">Virtual Office</span>
+                Book Your <span className="text-orange-500">Virtual Office</span>
               </h2>
 
               {!userId ? (
@@ -324,9 +291,7 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
               ) : (
                 <form className="space-y-5" onSubmit={handleSubmit}>
                   <div>
-                    <label className="block text-gray-700 mb-2 font-medium">
-                      Plan
-                    </label>
+                    <label className="block text-gray-700 mb-2 font-medium">Plan</label>
                     <input
                       type="text"
                       value={plan || "Loading..."}
@@ -336,9 +301,7 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
                   </div>
 
                   <div>
-                    <label className="block text-gray-700 mb-2 font-medium">
-                      Price
-                    </label>
+                    <label className="block text-gray-700 mb-2 font-medium">Price</label>
                     <input
                       type="text"
                       value={price ? `₹ ${price}` : "Loading..."}
@@ -348,9 +311,7 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
                   </div>
 
                   <div>
-                    <label className="block text-gray-700 mb-2 font-medium">
-                      Start Date
-                    </label>
+                    <label className="block text-gray-700 mb-2 font-medium">Start Date</label>
                     <input
                       type="date"
                       min={today}
@@ -363,17 +324,13 @@ const VirtualOfficeBookingModal = ({ isOpen, onClose }) => {
                       }`}
                     />
                     {errors.startDate && (
-                      <p className="text-red-500 text-sm mt-1">
-                        {errors.startDate}
-                      </p>
+                      <p className="text-red-500 text-sm mt-1">{errors.startDate}</p>
                     )}
                   </div>
 
                   {endDate && (
                     <div>
-                      <label className="block text-gray-700 mb-2 font-medium">
-                        End Date
-                      </label>
+                      <label className="block text-gray-700 mb-2 font-medium">End Date</label>
                       <input
                         type="date"
                         value={endDate}

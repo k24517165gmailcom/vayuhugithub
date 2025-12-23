@@ -3,13 +3,16 @@ import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import axios from "axios"; // ✅ Imported Axios
 
 const Visitors = () => {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user"));
   const userId = user?.id;
+  // ✅ Retrieve Bearer Token for Authorization
+  const token = localStorage.getItem("token");
 
-   // ✅ Use Vite environment variable with fallback
+  // ✅ Use Vite environment variable with fallback
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
 
   const [formData, setFormData] = useState({
@@ -24,19 +27,24 @@ const Visitors = () => {
 
   const [hasReservation, setHasReservation] = useState(false);
 
-  // ✅ Check if user has workspace bookings
+  // ✅ Check if user has workspace bookings using Axios
   useEffect(() => {
     if (!userId) return;
 
     const fetchReservations = async () => {
       try {
-        const response = await fetch(`${API_BASE}/get_workspace_bookings.php`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId }),
-        });
+        const response = await axios.post(
+          `${API_BASE}/get_workspace_bookings.php`,
+          { user_id: userId },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: token ? `Bearer ${token}` : "", // ✅ Bearer Token added
+            },
+          }
+        );
 
-        const data = await response.json();
+        const data = response.data;
 
         if (data.success && data.bookings) {
           setHasReservation(data.bookings.length > 0);
@@ -50,15 +58,21 @@ const Visitors = () => {
     };
 
     fetchReservations();
-  }, [userId]);
+  }, [userId, token]);
 
-  // ✅ Fetch company name automatically
+  // ✅ Fetch company name automatically using Axios
   useEffect(() => {
     if (!userId) return;
 
-    fetch(`${API_BASE}/get_company_profile.php?user_id=${userId}`)
-      .then((res) => res.json())
-      .then((data) => {
+    axios
+      .get(`${API_BASE}/get_company_profile.php`, {
+        params: { user_id: userId },
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "", // ✅ Bearer Token added
+        },
+      })
+      .then((res) => {
+        const data = res.data;
         if (data.success && data.profile) {
           setFormData((prev) => ({
             ...prev,
@@ -69,7 +83,7 @@ const Visitors = () => {
         }
       })
       .catch(() => toast.error("Error fetching company name"));
-  }, [userId]);
+  }, [userId, token]);
 
   // ✅ Handle input changes
   const handleChange = (e) => {
@@ -77,7 +91,7 @@ const Visitors = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // ✅ Handle form submit
+  // ✅ Handle form submit using Axios
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -93,13 +107,18 @@ const Visitors = () => {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/add_visitor.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, user_id: userId }),
-      });
+      const response = await axios.post(
+        `${API_BASE}/add_visitor.php`,
+        { ...formData, user_id: userId },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token ? `Bearer ${token}` : "", // ✅ Bearer Token added
+          },
+        }
+      );
 
-      const result = await response.json();
+      const result = response.data;
 
       if (result.success) {
         toast.success("Visitor added successfully!");
@@ -109,7 +128,8 @@ const Visitors = () => {
       }
     } catch (error) {
       console.error("Error:", error);
-      toast.error("Something went wrong!");
+      const errorMsg = error.response?.data?.message || "Something went wrong!";
+      toast.error(errorMsg);
     }
   };
 

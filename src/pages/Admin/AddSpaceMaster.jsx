@@ -1,7 +1,7 @@
-// AddSpaceMaster.jsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import axios from "axios"; // ✅ Imported Axios
 import "react-toastify/dist/ReactToastify.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
@@ -64,14 +64,16 @@ const AddSpaceMaster = () => {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [bulkImage, setBulkImage] = useState(null); // ADDED: bulk image for generation
+  const [bulkImage, setBulkImage] = useState(null);
 
-  // Fetch existing codes
+  // ✅ Retrieve Bearer Token
+  const token = localStorage.getItem("token");
+
+  // Fetch existing codes using Axios
   const fetchExistingCodes = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/get_spaces.php`);
-      const data = await res.json();
-      setAllCodes(data?.spaces?.map((s) => s.space_code).filter(Boolean) || []);
+      const res = await axios.get(`${API_URL}/get_spaces.php`);
+      setAllCodes(res.data?.spaces?.map((s) => s.space_code).filter(Boolean) || []);
     } catch (err) {
       console.error(err);
       setAllCodes([]);
@@ -82,7 +84,6 @@ const AddSpaceMaster = () => {
     fetchExistingCodes();
   }, [fetchExistingCodes]);
 
-  // Generate next available code
   const generateNextCode = useCallback(
     (spaceName) => {
       const group = SPACE_GROUPS[spaceName];
@@ -108,7 +109,6 @@ const AddSpaceMaster = () => {
 
   const isPositiveNumber = (val) => val !== "" && !isNaN(val) && Number(val) >= 0;
 
-  // Handle input updates
   const handleInput = useCallback((e) => {
     const { name, value } = e.target;
 
@@ -132,7 +132,6 @@ const AddSpaceMaster = () => {
     setForm((prev) => ({ ...prev, [name]: value }));
   }, [generateNextCode]);
 
-  // Image handling
   const handleImageChange = useCallback((e) => {
     const file = e.target.files?.[0];
     if (!file) return toast.error("Please upload a valid image file (JPG/PNG/WebP)");
@@ -143,7 +142,6 @@ const AddSpaceMaster = () => {
 
   useEffect(() => () => { preview && URL.revokeObjectURL(preview); }, [preview]);
 
-  // Validation
   const validate = useCallback(() => {
     if (!form.space) return toast.error("Select Space Type") || false;
     if (!form.space_code) return toast.error("Auto-generated space code is missing") || false;
@@ -157,7 +155,7 @@ const AddSpaceMaster = () => {
     return true;
   }, [form, image]);
 
-  // Submit
+  // Submit using Axios and Bearer Token
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     if (!validate()) return;
@@ -168,10 +166,14 @@ const AddSpaceMaster = () => {
       Object.entries(form).forEach(([k, v]) => fd.append(k, v ?? ""));
       image && fd.append("image", image);
 
-      const res = await fetch(`${API_URL}/add_space.php`, { method: "POST", body: fd });
-      const data = await res.json();
+      // ✅ Axios POST with Authorization header
+      const res = await axios.post(`${API_URL}/add_space.php`, fd, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
 
-      if (data?.success) {
+      if (res.data?.success) {
         toast.success("Space added successfully!");
         await fetchExistingCodes();
         setForm(DEFAULT_FORM);
@@ -180,42 +182,46 @@ const AddSpaceMaster = () => {
         setPreview(null);
         navigate("/admin/space-master-list");
       } else {
-        toast.error(data?.message || "Failed to add space");
+        toast.error(res.data?.message || "Failed to add space");
       }
     } catch (err) {
       console.error(err);
-      toast.error("Network/server error");
+      const errorMsg = err.response?.data?.message || "Network/server error";
+      toast.error(errorMsg);
     } finally { setLoading(false); }
-  }, [form, image, preview, fetchExistingCodes, navigate, validate]);
+  }, [form, image, preview, fetchExistingCodes, navigate, validate, token]);
 
-  // Bulk generate
+  // Bulk generate using Axios and Bearer Token
   const bulkGenerate = useCallback(async (spaceName) => {
     if (!SPACE_GROUPS[spaceName]) return;
     if (!window.confirm(`Generate all ${spaceName} entries now?`)) return;
 
     setLoading(true);
     try {
-      const defaults = DEFAULT_PRICES[spaceName] || {}; // ADDED: send defaults
-      const fd = new FormData(); // ADDED: FormData for image
-      fd.append("group", spaceName); // ADDED
-      fd.append("defaults", JSON.stringify(defaults)); // ADDED
-      if (bulkImage) fd.append("image", bulkImage); // ADDED
+      const defaults = DEFAULT_PRICES[spaceName] || {};
+      const fd = new FormData();
+      fd.append("group", spaceName);
+      fd.append("defaults", JSON.stringify(defaults));
+      if (bulkImage) fd.append("image", bulkImage);
 
-      const res = await fetch(`${API_URL}/bulk_generate_spaces.php`, {
-        method: "POST",
-        body: fd, // ADDED
+      // ✅ Axios POST with Authorization header
+      const res = await axios.post(`${API_URL}/bulk_generate_spaces.php`, fd, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
 
-      const data = await res.json();
+      const data = res.data;
       data?.success
         ? toast.success(`${data.created_count} spaces created, ${data.skipped_count} skipped`)
         : toast.error(data?.message || "Bulk generation failed");
       await fetchExistingCodes();
     } catch (err) {
       console.error(err);
-      toast.error("Network/server error while bulk generating");
+      const errorMsg = err.response?.data?.message || "Error while bulk generating";
+      toast.error(errorMsg);
     } finally { setLoading(false); }
-  }, [bulkImage, fetchExistingCodes]);
+  }, [bulkImage, fetchExistingCodes, token]);
 
   const groupStatus = useMemo(() => {
     const status = {};
@@ -234,6 +240,7 @@ const AddSpaceMaster = () => {
         return (
           <button
             key={name}
+            type="button" // Specified type to prevent accidental form submit
             onClick={() => bulkGenerate(name)}
             disabled={loading || fullyCreated}
             className={`px-3 py-2 border rounded bg-orange-50 text-orange-600 hover:bg-orange-100 disabled:opacity-50 ${fullyCreated ? "line-through text-gray-400" : ""}`}
@@ -259,19 +266,18 @@ const AddSpaceMaster = () => {
         <h1 className="text-2xl font-semibold">Add New Space</h1>
         <button onClick={() => navigate("/admin/space-master-list")} className="px-3 py-1 border border-orange-400 text-orange-500 rounded hover:bg-orange-50 transition">Space List</button>
       </div>
-      {/* BULK IMAGE INPUT - ADDED */}
+
       <div className="mb-4">
         <label className="block text-sm mb-1">Default Image for Bulk Generation</label>
         <input
           type="file"
           accept="image/*"
           onChange={e => setBulkImage(e.target.files?.[0] || null)}
-          className="w-full border border-orange-400 rounded px-3 py-2"
+          className="w-full border border-orange-400 rounded px-3 py-2 bg-white"
         />
       </div>
 
       {GenerateButtons}
-
 
       <form onSubmit={handleSubmit} className="bg-white shadow-sm rounded-lg p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -287,7 +293,7 @@ const AddSpaceMaster = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Space Code <span className="text-red-500">*</span></label>
               <input name="space_code" value={form.space_code} readOnly className="w-full border border-orange-400 rounded px-3 py-2 bg-gray-100" placeholder="Auto-generated" />
             </div>
-            {/* Rates */}
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {["per_hour", "per_day", "per_month"].map(f => (
                 <div key={f}>
@@ -296,7 +302,7 @@ const AddSpaceMaster = () => {
                 </div>
               ))}
             </div>
-            {/* Weekly */}
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {["one_week", "two_weeks", "three_weeks"].map(f => (
                 <div key={f}>
@@ -305,7 +311,7 @@ const AddSpaceMaster = () => {
                 </div>
               ))}
             </div>
-            {/* Duration */}
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {["min_duration", "min_duration_desc", "max_duration"].map(f => (
                 <div key={f}>
@@ -324,7 +330,6 @@ const AddSpaceMaster = () => {
             </div>
           </div>
 
-          {/* RIGHT COLUMN */}
           <div className="space-y-6 flex flex-col items-center">
             <div className="w-full flex justify-center mt-2">
               <div className="p-2 border border-orange-300 rounded-lg bg-orange-50 shadow-sm">

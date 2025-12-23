@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import axios from "axios"; // ✅ Imported Axios
 
 const CompanyProfile = () => {
   const [logo, setLogo] = useState(null);
@@ -17,6 +18,9 @@ const CompanyProfile = () => {
 
   const user = JSON.parse(localStorage.getItem("user"));
   const userId = user?.id;
+  // ✅ Retrieve token for Authorization
+  const token = localStorage.getItem("token");
+
   const API_BASE =
     import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
 
@@ -24,9 +28,15 @@ const CompanyProfile = () => {
   useEffect(() => {
     if (!userId) return;
 
-    fetch(`${API_BASE}/get_company_profile.php?user_id=${userId}`)
-      .then((res) => res.json())
-      .then((data) => {
+    // ✅ Using Axios GET with Bearer Token
+    axios.get(`${API_BASE}/get_company_profile.php`, {
+      params: { user_id: userId },
+      headers: {
+        Authorization: `Bearer ${token}`,
+      }
+    })
+      .then((response) => {
+        const data = response.data;
         if (data.success && data.profile) {
           const profile = data.profile;
           setProfileId(profile.id); // existing profile
@@ -41,7 +51,7 @@ const CompanyProfile = () => {
         }
       })
       .catch((err) => console.error("Error fetching company profile:", err));
-  }, [userId]);
+  }, [userId, token]);
 
   const handleLogoChange = (e) => {
     const file = e.target.files[0];
@@ -76,12 +86,15 @@ const CompanyProfile = () => {
         ? `${API_BASE}/update_company_profile.php`
         : `${API_BASE}/add_company_profile.php`;
 
-      const response = await fetch(url, {
-        method: "POST",
-        body: payload,
+      // ✅ Using Axios POST with Bearer Token
+      // Note: Do not set Content-Type header manually when sending FormData
+      const response = await axios.post(url, payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
-      const result = await response.json();
+      const result = response.data;
       if (result.success) {
         toast.success(result.message);
         if (!profileId && result.profileId) setProfileId(result.profileId);
@@ -90,7 +103,8 @@ const CompanyProfile = () => {
       }
     } catch (error) {
       console.error(error);
-      toast.error("Something went wrong!");
+      const errorMsg = error.response?.data?.message || "Something went wrong!";
+      toast.error(errorMsg);
     }
   };
 

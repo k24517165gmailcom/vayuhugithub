@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { RefreshCcw, User, CheckCircle, Ban } from "lucide-react";
+import { RefreshCcw, User } from "lucide-react";
+import axios from "axios"; // ✅ Imported Axios
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -8,16 +9,28 @@ const AdminSeatMapView = () => {
   const [spaces, setSpaces] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // ✅ Retrieve Bearer Token for Authorization
+  const token = localStorage.getItem("token");
+
   const fetchData = () => {
     setLoading(true);
-    fetch(`${API_BASE_URL}/get_spaces.php`)
-      .then((res) => res.json())
-      .then((data) => {
+
+    // ✅ Using Axios with Authorization Header
+    axios.get(`${API_BASE_URL}/get_spaces.php`, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : "",
+      }
+    })
+      .then((res) => {
+        // Axios wraps response in 'data'
+        const data = res.data;
         if (data.success) {
           setSpaces(data.spaces);
         }
       })
-      .catch((err) => console.error(err))
+      .catch((err) => {
+        console.error("Error fetching seat map data:", err);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -83,7 +96,6 @@ const AdminSeatMapView = () => {
           sortedGroupKeys.map((category) => {
             const items = groupedSpaces[category];
             const total = items.length;
-            // Count available based on your API's flag (assuming is_available == 1)
             const available = items.filter(i => i.is_available == 1 || i.is_available === true).length;
             const occupied = total - available;
 
@@ -130,7 +142,7 @@ const AdminSeatMapView = () => {
                            )}
                          </div>
 
-                         {/* Hover Tooltip (Optional: shows status) */}
+                         {/* Hover Tooltip */}
                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10">
                            {seat.space_code} - {isFree ? "Available" : "Booked"}
                          </div>

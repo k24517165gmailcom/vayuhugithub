@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import Layout from "../components/Layout";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import axios from "axios"; // ✅ Imported Axios
 
 const VisitorsDetails = () => {
   const [visitors, setVisitors] = useState([]);
@@ -12,6 +13,8 @@ const VisitorsDetails = () => {
 
   const user = JSON.parse(localStorage.getItem("user"));
   const userId = user?.id;
+  // ✅ Retrieve Bearer Token for Authorization
+  const token = localStorage.getItem("token");
 
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
 
@@ -24,13 +27,19 @@ const VisitorsDetails = () => {
 
     const fetchVisitors = async () => {
       try {
-        const response = await fetch(`${API_BASE}/get_visitors.php`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId }),
-        });
+        // ✅ Switched to Axios POST request
+        const response = await axios.post(`${API_BASE}/get_visitors.php`, 
+          { user_id: userId }, // Axios handles JSON stringification automatically
+          {
+            headers: { 
+              "Content-Type": "application/json",
+              // ✅ Added Bearer Token to headers
+              Authorization: token ? `Bearer ${token}` : "" 
+            },
+          }
+        );
 
-        const data = await response.json();
+        const data = response.data; // Axios stores response in .data
 
         if (!data.success) {
           throw new Error(data.message || "Failed to load visitors.");
@@ -40,14 +49,16 @@ const VisitorsDetails = () => {
         setFilteredVisitors(data.visitors);
       } catch (err) {
         console.error(err);
-        setError(err.message);
+        // Axios error handling looks into response.data.message
+        const errorMessage = err.response?.data?.message || err.message;
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
     };
 
     fetchVisitors();
-  }, [userId]);
+  }, [userId, token]); // ✅ Added token to dependency array
 
   // ✅ Search functionality
   useEffect(() => {

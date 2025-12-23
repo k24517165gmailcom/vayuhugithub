@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { toast } from "react-toastify";
+import axios from "axios"; // ✅ Added Axios
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
 
@@ -61,15 +62,51 @@ const BlogEditModal = ({ blog, onClose, onSave }) => {
     return true;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
     setLoading(true);
-    const updatedData = { ...formData };
-    if (imageFile) updatedData.blog_image = imageFile;
 
-    onSave(updatedData).finally(() => setLoading(false));
+    // ✅ Prepare Multipart Form Data for Axios
+    const payload = new FormData();
+    payload.append("id", blog.id); // Ensure ID is passed for update
+    payload.append("blog_heading", formData.blog_heading);
+    payload.append("blog_description", formData.blog_description);
+    payload.append("status", formData.status);
+    
+    if (imageFile) {
+      payload.append("blog_image", imageFile);
+    }
+
+    // ✅ Get token from localStorage
+    const token = localStorage.getItem("token");
+
+    try {
+      // ✅ Axios POST with Authorization Header
+      const response = await axios.post(`${API_URL}/update_blog.php`, payload, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+
+      const result = response.data;
+
+      if (result.success) {
+        toast.success("Blog updated successfully!");
+        // ✅ Call the parent onSave to refresh list and close modal
+        onSave(); 
+      } else {
+        toast.error(result.message || "Failed to update blog");
+      }
+    } catch (error) {
+      console.error("Update error:", error);
+      const errorMsg = error.response?.data?.message || "Something went wrong. Please try again.";
+      toast.error(errorMsg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!blog) return null;

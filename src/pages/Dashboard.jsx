@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Layout from "../components/Layout";
+import axios from "axios"; // ✅ Imported Axios
 
 const Dashboard = () => {
   const [bookings, setBookings] = useState([]);
@@ -14,6 +15,8 @@ const Dashboard = () => {
 
   const user = JSON.parse(localStorage.getItem("user"));
   const userId = user?.id;
+  // ✅ Get the token for Authorization
+  const token = localStorage.getItem("token");
 
   useEffect(() => {
     if (!userId) {
@@ -27,29 +30,38 @@ const Dashboard = () => {
         const API_BASE =
           import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
 
-        const response = await fetch(`${API_BASE}/get_booking_summary.php`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId }),
-        });
+        // ✅ Using Axios POST request
+        const response = await axios.post(
+          `${API_BASE}/get_booking_summary.php`,
+          { user_id: userId }, // Axios sends this as JSON automatically
+          {
+            headers: {
+              "Content-Type": "application/json",
+              // ✅ Added Bearer Token to Axios headers
+              Authorization: token ? `Bearer ${token}` : "",
+            },
+          }
+        );
 
-        const data = await response.json();
+        const data = response.data; // Axios stores response in .data
 
-        if (!response.ok || !data.success) {
+        if (!data.success) {
           throw new Error(data.message || "Failed to load dashboard data.");
         }
 
         setBookings(data.bookings || []);
         setSummary(data.summary || {});
       } catch (err) {
-        setError(err.message);
+        // Axios errors store the server message in err.response.data
+        const errorMessage = err.response?.data?.message || err.message;
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
     };
 
     fetchDashboardData();
-  }, [userId]);
+  }, [userId, token]);
 
   // 🧾 Today's reservations (frontend filter)
   const today = new Date().toISOString().split("T")[0];

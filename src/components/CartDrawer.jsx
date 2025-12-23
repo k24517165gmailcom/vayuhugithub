@@ -2,12 +2,16 @@ import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "../context/CartContext";
 import { toast } from "react-toastify";
+import axios from "axios"; // ✅ Added Axios
 
 // ✅ Dynamic API base URL via Vite env
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
 
 const CartDrawer = ({ open, onClose }) => {
   const { cart, removeFromCart, clearCart, totalAmount } = useCart();
+
+  // ✅ Retrieve Bearer Token
+  const token = localStorage.getItem("token");
 
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
@@ -29,77 +33,83 @@ const CartDrawer = ({ open, onClose }) => {
     const loaded = await loadRazorpayScript();
     if (!loaded) return toast.error("Razorpay SDK failed to load.");
 
-    // 1. Create Order
-    const createOrderRes = await fetch(`${API_URL}/create_razorpay_order.php`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount: totalAmount }),
-    });
-    const orderData = await createOrderRes.json();
+    try {
+      // 1. Create Order using Axios
+      const createOrderRes = await axios.post(`${API_URL}/create_razorpay_order.php`, 
+        { amount: totalAmount },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token ? `Bearer ${token}` : "",
+          },
+        }
+      );
+      
+      const orderData = createOrderRes.data;
+      if (!orderData.success) return toast.error(orderData.message || "Failed to create order.");
 
-    if (!orderData.success) return toast.error(orderData.message || "Failed to create order.");
-
-    const options = {
-      key: orderData.key,
-      amount: totalAmount * 100,
-      currency: "INR",
-      name: "Vayuhu Workspaces",
-      description: "Cart Checkout",
-      order_id: orderData.order_id,
-      theme: { color: "#F97316" },
-      handler: async function (response) {
-        
-        // 2. Verify Payment
-        const verifyRes = await fetch(`${API_URL}/verify_payment.php`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(response),
-        });
-        const verifyData = await verifyRes.json();
-
-        if (!verifyData.success) return toast.error("Payment verification failed!");
-
-        // 3. Prepare Bulk Data
-        const user = JSON.parse(localStorage.getItem("user"));
-        const userId = user?.id || null;
-
-        const bulkBookingData = cart.map((booking) => ({
-            user_id: userId,
-            space_id: booking.id,
-            workspace_title: booking.title,
-            plan_type: booking.plan_type,
-            start_date: booking.start_date,
-            end_date: booking.end_date,
-            start_time: booking.start_time,
-            end_time: booking.end_time,
-            total_days: booking.total_days,
-            total_hours: booking.total_hours,
-            num_attendees: booking.num_attendees,
-            final_amount: booking.final_amount,
-            coupon_code: booking.coupon_code || null,
-            referral_source: booking.referral || null,
-            terms_accepted: 1,
-            payment_id: response.razorpay_payment_id,
-            
-            // 🟢 FIXED: Include seat codes in the payload to backend
-            seat_codes: booking.seat_codes || "" 
-        }));
-
-        // 4. Send Bulk Request
-        try {
-            const bookingRes = await fetch(`${API_URL}/add_bulk_bookings.php`, { 
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ bookings: bulkBookingData }),
+      const options = {
+        key: orderData.key,
+        amount: totalAmount * 100,
+        currency: "INR",
+        name: "Vayuhu Workspaces",
+        description: "Cart Checkout",
+        order_id: orderData.order_id,
+        theme: { color: "#F97316" },
+        handler: async function (response) {
+          
+          try {
+            // 2. Verify Payment using Axios
+            const verifyRes = await axios.post(`${API_URL}/verify_payment.php`, response, {
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: token ? `Bearer ${token}` : "",
+              },
             });
             
-            const bookingResult = await bookingRes.json();
+            const verifyData = verifyRes.data;
+            if (!verifyData.success) return toast.error("Payment verification failed!");
+
+            // 3. Prepare Bulk Data
+            const user = JSON.parse(localStorage.getItem("user"));
+            const userId = user?.id || null;
+
+            const bulkBookingData = cart.map((booking) => ({
+                user_id: userId,
+                space_id: booking.id,
+                workspace_title: booking.title,
+                plan_type: booking.plan_type,
+                start_date: booking.start_date,
+                end_date: booking.end_date,
+                start_time: booking.start_time,
+                end_time: booking.end_time,
+                total_days: booking.total_days,
+                total_hours: booking.total_hours,
+                num_attendees: booking.num_attendees,
+                final_amount: booking.final_amount,
+                coupon_code: booking.coupon_code || null,
+                referral_source: booking.referral || null,
+                terms_accepted: 1,
+                payment_id: response.razorpay_payment_id,
+                seat_codes: booking.seat_codes || "" 
+            }));
+
+            // 4. Send Bulk Request using Axios
+            const bookingRes = await axios.post(`${API_URL}/add_bulk_bookings.php`, 
+              { bookings: bulkBookingData },
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: token ? `Bearer ${token}` : "",
+                },
+              }
+            );
             
-            if(!bookingResult.success) {
-                throw new Error(bookingResult.message);
+            if(!bookingRes.data.success) {
+                throw new Error(bookingRes.data.message);
             }
 
-            // 5. Send Email
+            // 5. Send Email using Axios
             const emailPayload = {
                 user_id: userId,
                 user_email: user?.email,
@@ -107,25 +117,32 @@ const CartDrawer = ({ open, onClose }) => {
                 bookings: cart 
             };
 
-            await fetch(`${API_URL}/send_booking_email.php`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(emailPayload),
+            await axios.post(`${API_URL}/send_booking_email.php`, emailPayload, {
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: token ? `Bearer ${token}` : "",
+                },
             });
 
             toast.success("🎉 All bookings confirmed!");
             clearCart();
             onClose();
 
-        } catch (error) {
-            console.error("Booking Error:", error);
-            toast.error("Payment successful, but booking failed. Contact support.");
-        }
-      },
-    };
+          } catch (error) {
+              console.error("Booking Process Error:", error);
+              const msg = error.response?.data?.message || "Payment successful, but booking failed. Contact support.";
+              toast.error(msg);
+          }
+        },
+      };
 
-    const rzp = new window.Razorpay(options);
-    rzp.open();
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
+    } catch (error) {
+      console.error("Checkout Initialization Error:", error);
+      toast.error("Failed to initialize checkout.");
+    }
   };
 
   return (
@@ -160,10 +177,9 @@ const CartDrawer = ({ open, onClose }) => {
                       <h4 className="font-semibold text-gray-800">{item.title}</h4>
                       <p className="text-sm text-gray-600">{item.plan_type}</p>
                       
-                      {/* 🟢 FIXED: Display Selected Seats in the Cart UI */}
                       {item.seat_codes && (
                         <p className="text-xs text-blue-600 font-medium mt-1">
-                           Seats: {item.seat_codes}
+                            Seats: {item.seat_codes}
                         </p>
                       )}
 

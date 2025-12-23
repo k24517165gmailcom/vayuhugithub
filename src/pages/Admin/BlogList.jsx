@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import axios from "axios"; // ✅ Imported Axios
 import BlogEditModal from "./BlogEditModal";
 
 // ✅ Use environment variable or fallback to localhost
@@ -14,11 +15,20 @@ const BlogList = () => {
   const [previewImage, setPreviewImage] = useState(null);
   const [selectedBlog, setSelectedBlog] = useState(null);
 
+  // ✅ Get token from localStorage
+  const token = localStorage.getItem("token");
+
   // Fetch Blog List
   const fetchBlogs = async () => {
     try {
-      const response = await fetch(`${API_URL}/blog_list.php`);
-      const data = await response.json();
+      // ✅ Using Axios with Authorization Header
+      const response = await axios.get(`${API_URL}/blog_list.php`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+
+      const data = response.data; // Axios stores body in .data
 
       if (data.success) {
         setBlogs(data.data || []);
@@ -27,7 +37,8 @@ const BlogList = () => {
       }
     } catch (error) {
       console.error("Error fetching blogs:", error);
-      toast.error("Something went wrong while loading blogs");
+      const errorMsg = error.response?.data?.message || "Something went wrong while loading blogs";
+      toast.error(errorMsg);
     }
   };
 
@@ -57,12 +68,15 @@ const BlogList = () => {
         payload.append("blog_image", updatedData.blog_image);
       }
 
-      const res = await fetch(`${API_URL}/update_blog.php`, {
-        method: "POST",
-        body: payload,
+      // ✅ Using Axios POST with Authorization Header
+      const res = await axios.post(`${API_URL}/update_blog.php`, payload, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
       });
 
-      const data = await res.json();
+      const data = res.data;
 
       if (data.success) {
         toast.success("Blog updated successfully!");
@@ -73,7 +87,8 @@ const BlogList = () => {
       }
     } catch (err) {
       console.error(err);
-      toast.error("Something went wrong!");
+      const errorMsg = err.response?.data?.message || "Something went wrong!";
+      toast.error(errorMsg);
     }
   };
 

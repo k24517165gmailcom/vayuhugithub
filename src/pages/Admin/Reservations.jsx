@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import axios from "axios"; // ✅ Added Axios
 import "react-toastify/dist/ReactToastify.css";
 
 // ✅ Use environment variable for API base URL
@@ -11,11 +12,22 @@ const Reservations = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [entriesPerPage, setEntriesPerPage] = useState(10);
 
-  // ✅ Fetch Reservations
+  // ✅ Retrieve Bearer Token for Authorization
+  const token = localStorage.getItem("token");
+
+  // ✅ Fetch Reservations using Axios
   const fetchReservations = async () => {
     try {
-      const response = await fetch(`${API_BASE}/get_reservations.php`);
-      const data = await response.json();
+      // ✅ Switched to Axios with Authorization Header
+      const response = await axios.get(`${API_BASE}/get_reservations.php`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+
+      // Axios automatically parses JSON into response.data
+      const data = response.data;
+
       if (data.success) {
         setReservations(data.reservations || []);
       } else {
@@ -23,13 +35,15 @@ const Reservations = () => {
       }
     } catch (error) {
       console.error("Error fetching reservations:", error);
-      toast.error("Something went wrong while fetching reservations!");
+      // Access custom error message from backend if available
+      const errorMsg = error.response?.data?.message || "Something went wrong while fetching reservations!";
+      toast.error(errorMsg);
     }
   };
 
   useEffect(() => {
     fetchReservations();
-  }, []);
+  }, [API_BASE, token]); // Re-fetch if token changes
 
   // ✅ Filter by name, mobile, space, OR SPACE CODE (Updated)
   const filteredReservations = reservations.filter((res) => {

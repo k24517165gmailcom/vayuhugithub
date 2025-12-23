@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios"; // ✅ Added Axios
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
 
@@ -17,12 +18,21 @@ const EditContact = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
+  // ✅ Get token from localStorage
+  const token = localStorage.getItem("token");
+
   // ✅ Fetch contact details for editing
   useEffect(() => {
     const fetchContact = async () => {
       try {
-        const response = await fetch(`${API_BASE}/get_contact_details.php?id=${id}`);
-        const data = await response.json();
+        // ✅ Switched to Axios with Bearer Token
+        const response = await axios.get(`${API_BASE}/get_contact_details.php?id=${id}`, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+          },
+        });
+        
+        const data = response.data;
         if (data.success && data.contact) {
           setFormData({
             name: data.contact.name || "",
@@ -35,11 +45,12 @@ const EditContact = () => {
         }
       } catch (err) {
         console.error(err);
-        setMessage("Failed to load contact details.");
+        const errorMsg = err.response?.data?.message || "Failed to load contact details.";
+        setMessage(errorMsg);
       }
     };
     fetchContact();
-  }, [id]);
+  }, [id, API_BASE, token]);
 
   // ✅ Handle field changes
   const handleChange = (e) => {
@@ -54,16 +65,18 @@ const EditContact = () => {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/update_contact.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id,
-          ...formData,
-        }),
+      // ✅ Switched to Axios POST with Bearer Token
+      const res = await axios.post(`${API_BASE}/update_contact.php`, {
+        id,
+        ...formData,
+      }, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
       });
 
-      const data = await res.json();
+      const data = res.data;
 
       if (data.success) {
         setMessage("✅ Contact updated successfully!");
@@ -73,7 +86,8 @@ const EditContact = () => {
       }
     } catch (error) {
       console.error("Error updating contact:", error);
-      setMessage("Something went wrong. Please try again.");
+      const errorMsg = error.response?.data?.message || "Something went wrong. Please try again.";
+      setMessage(`❌ ${errorMsg}`);
     } finally {
       setLoading(false);
     }

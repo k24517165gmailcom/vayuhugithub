@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Chart from "react-apexcharts";
 import { toast } from "react-toastify";
+import axios from "axios"; // ✅ Imported Axios
 import "react-toastify/dist/ReactToastify.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
@@ -10,8 +11,9 @@ const AdminDashboard = () => {
   const [loadingReservations, setLoadingReservations] = useState(true);
   const [loadingRevenue, setLoadingRevenue] = useState(true);
   const [revenue, setRevenue] = useState({ categories: [], data: [] });
-  const [contactCount, setContactCount] = useState(0);
 
+  // ✅ Retrieve Bearer Token for Authorization
+  const token = localStorage.getItem("token");
 
   // -----------------------------
   // Fetch Reservations
@@ -19,8 +21,14 @@ const AdminDashboard = () => {
   const fetchReservations = async () => {
     try {
       setLoadingReservations(true);
-      const res = await fetch(`${API_URL}/get_reservations.php`);
-      const data = await res.json();
+      // ✅ Switched to Axios with Authorization Header
+      const res = await axios.get(`${API_URL}/get_reservations.php`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+      
+      const data = res.data;
       if (data.success) {
         setReservations(data.reservations || []);
       } else {
@@ -28,7 +36,8 @@ const AdminDashboard = () => {
       }
     } catch (err) {
       console.error("Error fetching reservations:", err);
-      toast.error("Something went wrong while fetching reservations!");
+      const errorMsg = err.response?.data?.message || "Something went wrong while fetching reservations!";
+      toast.error(errorMsg);
     } finally {
       setLoadingReservations(false);
     }
@@ -40,8 +49,14 @@ const AdminDashboard = () => {
   const fetchRevenue = async () => {
     try {
       setLoadingRevenue(true);
-      const res = await fetch(`${API_URL}/get_monthly_revenue.php`);
-      const data = await res.json();
+      // ✅ Switched to Axios with Authorization Header
+      const res = await axios.get(`${API_URL}/get_monthly_revenue.php`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+      
+      const data = res.data;
       if (data.success) {
         const categories = data.revenue.map((r) => r.month);
         const seriesData = data.revenue.map((r) => Number(r.total_revenue));
@@ -55,29 +70,13 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchContactCount = async () => {
-  try {
-    const res = await fetch(`${API_URL}/get_contact_count.php`);
-    const data = await res.json();
-
-    if (data.success) {
-      setContactCount(data.count);
-    }
-  } catch (err) {
-    console.error("Error fetching contact count", err);
-  }
-};
-
-
   // -----------------------------
   // Initial Load
   // -----------------------------
- useEffect(() => {
-  fetchReservations();
-  fetchRevenue();
-  fetchContactCount();
-}, []);
-
+  useEffect(() => {
+    fetchReservations();
+    fetchRevenue();
+  }, []);
 
   // -----------------------------
   // Summary Cards (Dynamic)
@@ -94,7 +93,7 @@ const AdminDashboard = () => {
     { label: "New Reservations", value: newReservations },
     { label: "Ongoing Reservations", value: ongoingReservations },
     { label: "Completed Reservations", value: completedReservations },
-    { label: "Today's Contact Request", value: contactCount },
+    { label: "Today's Contact Request", value: 0 },
   ];
 
   // -----------------------------
@@ -212,7 +211,7 @@ const AdminDashboard = () => {
                   <th className="p-2 border">Name</th>
                   <th className="p-2 border">Mobile No</th>
                   <th className="p-2 border">Space</th>
-                  <th className="p-2 border">Space Code</th> {/* NEW */}
+                  <th className="p-2 border">Space Code</th>
                   <th className="p-2 border">Pack</th>
                   <th className="p-2 border">Date</th>
                   <th className="p-2 border">Timings</th>
@@ -229,7 +228,7 @@ const AdminDashboard = () => {
                     <td className="p-2 border">{r.name}</td>
                     <td className="p-2 border">{r.mobile_no}</td>
                     <td className="p-2 border">{r.space}</td>
-                    <td className="p-2 border">{r.space_code}</td> {/* NEW */}
+                    <td className="p-2 border">{r.space_code}</td>
                     <td className="p-2 border">{r.pack}</td>
                     <td className="p-2 border">{formatDate(r.date)}</td>
                     <td className="p-2 border">{r.timings}</td>

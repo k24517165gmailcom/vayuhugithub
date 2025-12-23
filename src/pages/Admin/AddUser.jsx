@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import axios from "axios"; // ✅ Added Axios
 
 const AddUser = () => {
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
@@ -18,22 +19,30 @@ const AddUser = () => {
     e.preventDefault();
     setMessage("");
 
+    // ✅ Get Bearer Token from localStorage
+    const token = localStorage.getItem("token");
+
     try {
-      const response = await fetch(`${API_BASE}/add_user.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+      // ✅ Using Axios with Authorization Header
+      const response = await axios.post(`${API_BASE}/add_user.php`, formData, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "", // ✅ Bearer Token added
+        },
       });
 
-      const result = await response.json();
+      // ✅ Axios stores response in .data
+      const result = response.data;
       setMessage(result.message);
 
-      if (result.status === "success") {
+      if (result.status === "success" || result.success === true) {
         setFormData({ name: "", email: "", phone: "" });
       }
     } catch (error) {
       console.error("Error:", error);
-      setMessage("Something went wrong. Please try again.");
+      // ✅ Extract error message from Axios response if available
+      const errorMsg = error.response?.data?.message || "Something went wrong. Please try again.";
+      setMessage(errorMsg);
     }
   };
 

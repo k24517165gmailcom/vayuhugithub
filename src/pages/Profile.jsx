@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import axios from "axios"; // ✅ Imported Axios
 
 const Profile = () => {
   // ✅ Existing States
@@ -18,10 +19,10 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const API_BASE = import.meta.env.VITE_API_URL;
 
-
-  // ✅ Get logged-in user info
+  // ✅ Get logged-in user info and token
   const user = JSON.parse(localStorage.getItem("user"));
   const userId = user?.id;
+  const token = localStorage.getItem("token"); // ✅ Retrieve Bearer Token
 
   // ✅ Fetch user data
   useEffect(() => {
@@ -31,19 +32,25 @@ const Profile = () => {
       return;
     }
 
-    fetch(`${API_BASE}/get_user_profile.php?id=${userId}`)
-      .then((res) => res.json())
-      .then((data) => {
+    // ✅ Using Axios with Bearer Token
+    axios.get(`${API_BASE}/get_user_profile.php`, {
+      params: { id: userId },
+      headers: {
+        Authorization: `Bearer ${token}` // ✅ Added Authorization Header
+      }
+    })
+      .then((res) => {
+        const data = res.data;
         if (data.success && data.user) {
-          const user = data.user;
+          const userProfile = data.user;
           setFormData({
-            name: user.name || "",
-            contact: user.phone || "",
-            email: user.email || "",
-            dob: user.dob || "1990-01-01",
-            address: user.address || "",
+            name: userProfile.name || "",
+            contact: userProfile.phone || "",
+            email: userProfile.email || "",
+            dob: userProfile.dob || "1990-01-01",
+            address: userProfile.address || "",
           });
-          if (user.profile_pic) setPreview(user.profile_pic);
+          if (userProfile.profile_pic) setPreview(userProfile.profile_pic);
         } else {
           toast.error("Failed to fetch profile");
         }
@@ -53,7 +60,7 @@ const Profile = () => {
         toast.error("Error fetching profile");
       })
       .finally(() => setLoading(false));
-  }, [userId]);
+  }, [userId, token]);
 
   // ✅ Handlers
   const handleImageChange = (e) => {
@@ -84,12 +91,15 @@ const Profile = () => {
       formDataToSend.append("address", formData.address);
       if (profilePic) formDataToSend.append("profilePic", profilePic);
 
-      const response = await fetch(`${API_BASE}/update_user_profile.php`, {
-        method: "POST",
-        body: formDataToSend,
+      // ✅ Using Axios POST with Bearer Token
+      const response = await axios.post(`${API_BASE}/update_user_profile.php`, formDataToSend, {
+        headers: {
+          Authorization: `Bearer ${token}` // ✅ Added Authorization Header
+          // Note: Axios automatically sets multipart/form-data for FormData objects
+        },
       });
 
-      const result = await response.json();
+      const result = response.data;
 
       if (result.success) {
         toast.success("Profile updated successfully!");
@@ -99,7 +109,8 @@ const Profile = () => {
       }
     } catch (error) {
       console.error("Error updating profile:", error);
-      toast.error("Something went wrong!");
+      const errorMsg = error.response?.data?.message || "Something went wrong!";
+      toast.error(errorMsg);
     }
   };
 

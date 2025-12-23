@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios"; // ✅ Added Axios
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
 
@@ -11,8 +12,18 @@ const BlogDetails = () => {
 
   const fetchBlog = async () => {
     try {
-      const res = await fetch(`${API_URL}/blog_detail.php?id=${id}`);
-      const data = await res.json();
+      // ✅ Retrieve token from localStorage
+      const token = localStorage.getItem("token");
+
+      // ✅ Switched to Axios with Bearer Token header
+      const res = await axios.get(`${API_URL}/blog_detail.php`, {
+        params: { id: id },
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "", // ✅ Bearer Token added
+        },
+      });
+
+      const data = res.data;
 
       if (data.success) {
         setBlog(data.blog);
@@ -20,7 +31,7 @@ const BlogDetails = () => {
         console.error(data.message);
       }
     } catch (err) {
-      console.error("Fetch error:", err);
+      console.error("Fetch error:", err.response?.data || err);
     } finally {
       setLoading(false);
     }
@@ -78,7 +89,8 @@ const BlogDetails = () => {
       {blog.blog_image && (
         <div className="mb-8">
           <img
-            src={blog.blog_image}
+            // ✅ Ensure image path works with backend URL
+            src={blog.blog_image.startsWith('http') ? blog.blog_image : `${API_URL}/${blog.blog_image}`}
             alt={blog.blog_heading}
             className="w-full rounded-lg shadow-md"
           />

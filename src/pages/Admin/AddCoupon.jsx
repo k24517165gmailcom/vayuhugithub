@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import axios from "axios"; // ✅ Imported Axios
 import "react-toastify/dist/ReactToastify.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
@@ -52,12 +53,20 @@ const AddCoupon = () => {
     return true;
   };
 
-  // Submit Handler
+  // ✅ Submit Handler (with JWT Authorization & Axios)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
     setLoading(true);
+
+    // ✅ Retrieve token from localStorage
+    const token = localStorage.getItem("token");
+    if (!token) {
+      toast.error("You must be logged in to add a coupon.");
+      setLoading(false);
+      return;
+    }
 
     try {
       const payload = new FormData();
@@ -65,26 +74,26 @@ const AddCoupon = () => {
         payload.append(key, value);
       });
 
-      const res = await fetch(`${API_URL}/add_coupon.php`, {
-        method: "POST",
-        body: payload,
+      // ✅ Switched to Axios POST request
+      const res = await axios.post(`${API_URL}/add_coupon.php`, payload, {
+        headers: {
+          // Note: Axios automatically sets Content-Type for FormData
+          Authorization: `Bearer ${token}`, // ✅ Send JWT Token
+        },
       });
 
-      let data;
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error("Invalid server response");
-      }
+      const data = res.data; // Axios stores response in .data
 
-      if (res.ok && data.success) {
+      if (data.success) {
         toast.success("Coupon Added Successfully!");
         setTimeout(() => navigate("/admin/coupon-list"), 700);
       } else {
         toast.error(data?.message || "Failed to create coupon");
       }
     } catch (err) {
-      toast.error(err.message || "Error adding coupon");
+      // Axios stores server error responses in err.response.data
+      const errorMsg = err.response?.data?.message || err.message || "Error adding coupon";
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }

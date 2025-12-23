@@ -13,7 +13,8 @@ import {
   Cell,
 } from "recharts";
 import { motion } from "framer-motion";
-import { RefreshCcw, LayoutDashboard, CheckCircle, XCircle, MapPin, Monitor, Users } from "lucide-react";
+import { RefreshCcw, LayoutDashboard, CheckCircle, XCircle, MapPin } from "lucide-react";
+import axios from "axios"; // ✅ Imported Axios
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -29,17 +30,28 @@ const AdminOccupancyDashboard = () => {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [activeTab, setActiveTab] = useState("All");
 
+  // ✅ Retrieve Bearer Token for Authorization
+  const token = localStorage.getItem("token");
+
   const fetchData = () => {
     setLoading(true);
-    fetch(`${API_BASE_URL}/get_spaces.php`)
-      .then((res) => res.json())
-      .then((data) => {
+    
+    // ✅ Switched to Axios with Authorization Header
+    axios.get(`${API_BASE_URL}/get_spaces.php`, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : "",
+      }
+    })
+      .then((res) => {
+        const data = res.data; // Axios stores response in .data
         if (data.success) {
           setSpaces(data.spaces);
           setLastUpdated(new Date());
         }
       })
-      .catch((err) => console.error("Failed to load admin data", err))
+      .catch((err) => {
+        console.error("Failed to load admin data", err);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -47,7 +59,7 @@ const AdminOccupancyDashboard = () => {
     fetchData();
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [token]); // ✅ Added token to dependency array
 
   // 1. PIE CHART DATA
   const pieData = useMemo(() => {
@@ -249,14 +261,10 @@ const AdminOccupancyDashboard = () => {
             layout 
             className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3"
         >
-            {/* Logic: If 'All', show everything flattened. If specific tab, show only that list. */}
-            {(activeTab === "All" ? spaces : spacesByType[activeTab]).map((space) => {
+            {(activeTab === "All" ? spaces : spacesByType[activeTab] || []).map((space) => {
                 const isAvailable = space.is_available == 1 || space.is_available === true;
                 const displayCode = space.space_code || space.id || "#";
-                const type = space.space; // Ensure your API provides this in the flat list
-
-                // Skip if we are in specific tab mode (handled by mapped logic, but double check for 'All')
-                if (activeTab !== "All" && space.space !== activeTab) return null;
+                const type = space.space;
 
                 return (
                     <motion.div 
@@ -271,7 +279,7 @@ const AdminOccupancyDashboard = () => {
                                 : "border-red-200 bg-red-50/50 hover:bg-red-100"}
                         `}
                     >
-                         {/* Badge for Type (Only show in 'All' view to give context) */}
+                         {/* Badge for Type */}
                         {activeTab === "All" && (
                             <span className="text-[9px] text-gray-400 font-medium mb-1 truncate w-full text-center">
                                 {type}
@@ -292,7 +300,6 @@ const AdminOccupancyDashboard = () => {
             })}
         </motion.div>
         
-        {/* Empty State if needed */}
         {spaces.length === 0 && (
             <div className="text-center py-10 text-gray-400">No spaces found.</div>
         )}

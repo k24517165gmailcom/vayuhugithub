@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { RefreshCcw, Map, MapPin } from "lucide-react";
+import { RefreshCcw, Map } from "lucide-react";
+import axios from "axios"; // ✅ Imported Axios
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -8,16 +9,28 @@ const AdminBlueprintView = () => {
   const [spaces, setSpaces] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // ✅ Get Bearer Token from localStorage
+  const token = localStorage.getItem("token");
+
   const fetchData = () => {
     setLoading(true);
-    fetch(`${API_BASE_URL}/get_spaces.php`)
-      .then((res) => res.json())
-      .then((data) => {
+
+    // ✅ Using Axios with Authorization Header
+    axios.get(`${API_BASE_URL}/get_spaces.php`, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : "",
+      }
+    })
+      .then((res) => {
+        // Axios wraps response in 'data'
+        const data = res.data;
         if (data.success) {
           setSpaces(data.spaces);
         }
       })
-      .catch((err) => console.error(err))
+      .catch((err) => {
+        console.error("Error fetching blueprint data:", err);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -39,13 +52,11 @@ const AdminBlueprintView = () => {
   const zoneKeys = Object.keys(zones).sort();
 
   return (
-    // Switched bg from Slate (Blue-ish) to Stone (Warm Dark) to match Orange better
     <div className="min-h-screen bg-[#0c0a09] p-8 font-mono text-orange-100 relative overflow-hidden">
       {/* Background Grid Pattern (Blueprint Effect) - Orange Tint */}
       <div 
         className="absolute inset-0 opacity-10 pointer-events-none"
         style={{
-            // Updated hex from Blue (#3b82f6) to Orange (#f97316)
             backgroundImage: `linear-gradient(#f97316 1px, transparent 1px), linear-gradient(90deg, #f97316 1px, transparent 1px)`,
             backgroundSize: '40px 40px'
         }}
@@ -70,7 +81,6 @@ const AdminBlueprintView = () => {
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="w-4 h-4 bg-orange-600 border border-orange-400 relative">
-                        {/* Crosshatch for occupied */}
                         <div className="absolute inset-0 opacity-30" style={{backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 2px, #fff 2px, #fff 4px)'}}></div>
                     </div>
                     <span className="opacity-70 text-orange-200">OCCUPIED</span>
@@ -115,7 +125,6 @@ const AdminBlueprintView = () => {
   );
 };
 
-// Sub-component for each "Room" or Zone
 const BlueprintZone = ({ title, items, stats, index }) => {
     return (
         <motion.div
@@ -124,14 +133,12 @@ const BlueprintZone = ({ title, items, stats, index }) => {
             transition={{ delay: index * 0.1 }}
             className="border-2 border-orange-900/50 bg-orange-950/20 p-1 relative"
         >
-            {/* Corner Markers (CAD style) */}
             <div className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-orange-500"></div>
             <div className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-orange-500"></div>
             <div className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-orange-500"></div>
             <div className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-orange-500"></div>
 
             <div className="bg-[#1c1917]/80 p-5 h-full backdrop-blur-sm">
-                {/* Zone Header */}
                 <div className="flex justify-between items-start mb-6 border-b border-orange-800/30 pb-2">
                     <div>
                         <h3 className="text-lg font-bold text-white uppercase tracking-wider">{title}</h3>
@@ -143,13 +150,11 @@ const BlueprintZone = ({ title, items, stats, index }) => {
                     </div>
                 </div>
 
-                {/* The "Floor" Layout */}
                 <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-4">
                     {items.map((seat) => {
                         const isFree = seat.is_available == 1 || seat.is_available === true;
                         return (
                             <div key={seat.id} className="group relative">
-                                {/* Seat Graphic */}
                                 <div 
                                     className={`
                                         aspect-square flex items-center justify-center relative
@@ -160,17 +165,14 @@ const BlueprintZone = ({ title, items, stats, index }) => {
                                         }
                                     `}
                                 >
-                                    {/* Inner "Chair" curve representation */}
                                     <div className={`w-3/4 h-3/4 border-t-2 ${isFree ? 'border-orange-500/30' : 'border-white'} rounded-t-full`}></div>
                                     
-                                    {/* Occupied Pattern (Crosshatch) */}
                                     {!isFree && (
                                         <div className="absolute inset-0 opacity-20" 
                                              style={{backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 2px, #000 2px, #000 4px)'}}>
                                         </div>
                                     )}
 
-                                    {/* Seat Code Label */}
                                     <span className={`
                                         absolute -bottom-3 left-1/2 -translate-x-1/2 text-[9px] font-bold tracking-tighter bg-[#0c0a09] px-1 z-10
                                         ${isFree ? 'text-orange-500' : 'text-white'}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios"; // ✅ Imported Axios
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
 
@@ -18,36 +19,41 @@ const ContactComments = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // ✅ Fetch contact details
+  // ✅ Retrieve token from localStorage
+  const token = localStorage.getItem("token");
+
+  // ✅ Fetch contact details using Axios
   useEffect(() => {
     if (id) {
-      fetch(`${API_BASE}/get_contact_details.php?id=${id}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success) setContact(data.contact);
+      axios.get(`${API_BASE}/get_contact_details.php?id=${id}`, {
+        headers: { Authorization: token ? `Bearer ${token}` : "" }
+      })
+        .then((res) => {
+          if (res.data.success) setContact(res.data.contact);
         })
         .catch((err) => console.error("Error fetching contact details:", err));
     }
-  }, [id]);
+  }, [id, token]);
 
-  // ✅ Fetch comments for this contact
+  // ✅ Fetch comments for this contact using Axios
   useEffect(() => {
     if (id) {
-      fetch(`${API_BASE}/get_contact_comments.php?contact_id=${id}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success) setComments(data.comments || []);
+      axios.get(`${API_BASE}/get_contact_comments.php?contact_id=${id}`, {
+        headers: { Authorization: token ? `Bearer ${token}` : "" }
+      })
+        .then((res) => {
+          if (res.data.success) setComments(res.data.comments || []);
         })
         .catch((err) => console.error("Error fetching contact comments:", err));
     }
-  }, [id]);
+  }, [id, token]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // ✅ Submit new comment
+  // ✅ Submit new comment using Axios
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -58,17 +64,19 @@ const ContactComments = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/add_contact_comment.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contact_id: id,
-          status: formData.status,
-          comment: formData.newComment,
-        }),
+      // ✅ Axios POST with Authorization Header
+      const res = await axios.post(`${API_BASE}/add_contact_comment.php`, {
+        contact_id: id,
+        status: formData.status,
+        comment: formData.newComment,
+      }, {
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "" 
+        },
       });
 
-      const data = await res.json();
+      const data = res.data;
 
       if (data.success) {
         setComments((prev) => [
@@ -89,7 +97,8 @@ const ContactComments = () => {
       }
     } catch (err) {
       console.error(err);
-      alert("Network error");
+      const errorMsg = err.response?.data?.message || "Network error";
+      alert(errorMsg);
     } finally {
       setLoading(false);
     }

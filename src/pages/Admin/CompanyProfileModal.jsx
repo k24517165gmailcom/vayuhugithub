@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { toast } from "react-toastify";
+import axios from "axios"; // ✅ Imported Axios
 import "react-toastify/dist/ReactToastify.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
@@ -17,14 +18,22 @@ const CompanyProfileModal = ({ userId, onClose }) => {
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef(null);
 
-  // ✅ Fetch existing company profile
+  // ✅ Retrieve token from localStorage
+  const token = localStorage.getItem("token");
+
+  // ✅ Fetch existing company profile using Axios
   useEffect(() => {
     if (!userId) return;
 
     const fetchCompanyProfile = async () => {
       try {
-        const res = await fetch(`${API_BASE}/get_company_profile.php?user_id=${userId}`);
-        const data = await res.json();
+        // Using Axios with Authorization header
+        const res = await axios.get(`${API_BASE}/get_company_profile.php?user_id=${userId}`, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+          }
+        });
+        const data = res.data;
 
         if (data.success && data.profile) {
           const profile = data.profile;
@@ -39,14 +48,15 @@ const CompanyProfileModal = ({ userId, onClose }) => {
         }
       } catch (error) {
         console.error("Error fetching company profile:", error);
-        toast.error("Failed to load company profile");
+        const errorMsg = error.response?.data?.message || "Failed to load company profile";
+        toast.error(errorMsg);
       } finally {
         setLoading(false);
       }
     };
 
     fetchCompanyProfile();
-  }, [userId]);
+  }, [userId, token]);
 
   // ✅ Handle text input changes
   const handleChange = (e) => {
@@ -65,7 +75,7 @@ const CompanyProfileModal = ({ userId, onClose }) => {
     fileInputRef.current.click();
   };
 
-  // ✅ Update company profile
+  // ✅ Update company profile using Axios
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -78,12 +88,15 @@ const CompanyProfileModal = ({ userId, onClose }) => {
       payload.append("email", formData.email); // read-only, just pass original
       if (logo) payload.append("logo", logo);
 
-      const res = await fetch(`${API_BASE}/update_company_profile.php`, {
-        method: "POST",
-        body: payload,
+      // Using Axios POST with multipart/form-data and Authorization header
+      const res = await axios.post(`${API_BASE}/update_company_profile.php`, payload, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
       });
 
-      const data = await res.json();
+      const data = res.data;
       if (data.success) {
         toast.success("Company profile updated successfully!");
         onClose();
@@ -92,7 +105,8 @@ const CompanyProfileModal = ({ userId, onClose }) => {
       }
     } catch (error) {
       console.error(error);
-      toast.error("Something went wrong");
+      const errorMsg = error.response?.data?.message || "Something went wrong";
+      toast.error(errorMsg);
     }
   };
 

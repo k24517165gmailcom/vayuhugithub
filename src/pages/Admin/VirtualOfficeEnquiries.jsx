@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import axios from "axios"; // ✅ Imported Axios
 
 const VirtualOfficeEnquiries = () => {
   const API_BASE =
@@ -9,21 +10,24 @@ const VirtualOfficeEnquiries = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // ✅ Retrieve Bearer Token for Authorization
+  const token = localStorage.getItem("token");
+
   // -------------------------------
   // Fetch Enquiries
   // -------------------------------
   const fetchEnquiries = async () => {
     try {
       setLoading(true);
-      const response = await fetch(
-        `${API_BASE}/get_virtual_office_enquiries.php`,
-        {
-          method: "GET",
-          credentials: "include",
-        }
-      );
+      // ✅ Switched to Axios with Authorization Header
+      const response = await axios.get(`${API_BASE}/get_virtual_office_enquiries.php`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        withCredentials: true,
+      });
 
-      const data = await response.json();
+      const data = response.data; // Axios stores response body in .data
       setEnquiries(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching enquiries:", error);
@@ -41,18 +45,20 @@ const VirtualOfficeEnquiries = () => {
   // -------------------------------
   const updateStatus = async (id, status) => {
     try {
-      const response = await fetch(
+      // ✅ Switched to Axios POST with Authorization Header
+      const response = await axios.post(
         `${API_BASE}/get_virtual_office_enquiries.php`,
+        { id, status },
         {
-          method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: token ? `Bearer ${token}` : "",
           },
-          body: JSON.stringify({ id, status }),
+          withCredentials: true,
         }
       );
 
-      const result = await response.json();
+      const result = response.data;
 
       if (result.status === "success") {
         fetchEnquiries();
@@ -61,7 +67,8 @@ const VirtualOfficeEnquiries = () => {
       }
     } catch (error) {
       console.error("Error updating status:", error);
-      alert("Network error. Please try again.");
+      const errorMsg = error.response?.data?.message || "Network error. Please try again.";
+      alert(errorMsg);
     }
   };
 

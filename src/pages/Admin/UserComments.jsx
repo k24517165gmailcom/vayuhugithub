@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import axios from "axios"; // ✅ Added Axios
 
 // ✅ API base from environment variable
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
@@ -18,17 +19,26 @@ const UserComments = ({ user, onBack, onStatusUpdate }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
 
-  // ✅ Fetch comments dynamically
+  // ✅ Retrieve Bearer Token
+  const token = localStorage.getItem("token");
+
+  // ✅ Fetch comments dynamically using Axios
   useEffect(() => {
     if (user?.id) {
-      fetch(`${API_BASE}/get_user_comments.php?user_id=${user.id}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success) setComments(data.comments || []);
-        })
-        .catch((err) => console.error("Error fetching comments:", err));
+      axios.get(`${API_BASE}/get_user_comments.php?user_id=${user.id}`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      })
+      .then((response) => {
+        const data = response.data;
+        if (data.success) setComments(data.comments || []);
+      })
+      .catch((err) => {
+        console.error("Error fetching comments:", err);
+      });
     }
-  }, [user]);
+  }, [user, token]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -72,19 +82,21 @@ const UserComments = ({ user, onBack, onStatusUpdate }) => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/add_user_comment.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: user.id,
-          status: formData.status,
-          comment: formData.newComment,
-          follow_up_date: formData.status === "Follow-Up" ? formData.followUpDate : null,
-          follow_up_time: formData.status === "Follow-Up" ? formData.followUpTime : null,
-        }),
+      // ✅ Using Axios POST with Authorization Header
+      const response = await axios.post(`${API_BASE}/add_user_comment.php`, {
+        user_id: user.id,
+        status: formData.status,
+        comment: formData.newComment,
+        follow_up_date: formData.status === "Follow-Up" ? formData.followUpDate : null,
+        follow_up_time: formData.status === "Follow-Up" ? formData.followUpTime : null,
+      }, {
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        }
       });
 
-      const data = await res.json();
+      const data = response.data;
 
       if (data.success) {
         setComments((prev) => [
@@ -109,11 +121,12 @@ const UserComments = ({ user, onBack, onStatusUpdate }) => {
         setDateError("");
         setIsDateValid(false);
       } else {
-        alert("Failed to add comment");
+        alert(data.message || "Failed to add comment");
       }
     } catch (err) {
       console.error(err);
-      alert("Network error");
+      const errorMsg = err.response?.data?.message || "Network error";
+      alert(errorMsg);
     } finally {
       setLoading(false);
     }

@@ -7,6 +7,7 @@ import {
   Search,
   FileText,
 } from "lucide-react";
+import axios from "axios"; // ✅ Imported Axios
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import VirtualOfficeDetailsModal from "../../components/VirtualOfficeDetailsModal";
@@ -21,12 +22,21 @@ const VirtualOfficeBookings = () => {
   const [selectedBooking, setSelectedBooking] = useState(null); // New state for modal data
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // ✅ Retrieve Bearer Token for Authorization
+  const token = localStorage.getItem("token");
+
   // ✅ Fetch Bookings Function
   const fetchBookings = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/get_virtual_bookings.php`);
-      const data = await response.json();
+      // ✅ Switched to Axios with Authorization Header
+      const response = await axios.get(`${API_URL}/get_virtual_bookings.php`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+
+      const data = response.data; // Axios stores body in .data
 
       if (data.success) {
         setBookings(data.bookings);
@@ -35,7 +45,8 @@ const VirtualOfficeBookings = () => {
       }
     } catch (error) {
       console.error("Error:", error);
-      toast.error("Network error. Please try again.");
+      const errorMsg = error.response?.data?.message || "Network error. Please try again.";
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }

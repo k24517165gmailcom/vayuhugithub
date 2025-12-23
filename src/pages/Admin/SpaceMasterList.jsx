@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import axios from "axios"; // ✅ Imported Axios
 import EditSpaceMasterModal from "./EditSpaceMasterModal";
 
 // ✅ Use environment variable for API base URL
@@ -14,6 +15,9 @@ const SpaceMasterList = () => {
   const [selectedSpace, setSelectedSpace] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
 
+  // ✅ Retrieve Bearer Token for Authorization
+  const token = localStorage.getItem("token");
+
   const statusColors = {
     Active: "text-green-600 bg-green-100",
     Inactive: "text-red-600 bg-red-100",
@@ -22,8 +26,14 @@ const SpaceMasterList = () => {
   // Fetch spaces dynamically
   const fetchSpaces = async () => {
     try {
-      const response = await fetch(`${API_BASE}/get_spaces.php`);
-      const data = await response.json();
+      // ✅ Switched to Axios with Authorization Header
+      const response = await axios.get(`${API_BASE}/get_spaces.php`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+
+      const data = response.data; // Axios stores body in .data
 
       if (data.success) {
         setSpaces(data.spaces || []);
@@ -32,7 +42,8 @@ const SpaceMasterList = () => {
       }
     } catch (error) {
       console.error("Error fetching spaces:", error);
-      toast.error("Something went wrong while loading spaces");
+      const errorMsg = error.response?.data?.message || "Something went wrong while loading spaces";
+      toast.error(errorMsg);
     }
   };
 
@@ -59,11 +70,15 @@ const SpaceMasterList = () => {
     formData.append("id", selectedSpace.id);
 
     try {
-      const res = await fetch(`${API_BASE}/update_space.php`, {
-        method: "POST",
-        body: formData,
+      // ✅ Switched to Axios POST with Bearer Token and multipart header
+      const res = await axios.post(`${API_BASE}/update_space.php`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
       });
-      const result = await res.json();
+      
+      const result = res.data;
 
       if (result.success) {
         toast.success("Updated successfully!");
@@ -73,7 +88,9 @@ const SpaceMasterList = () => {
         toast.error(result.message);
       }
     } catch (err) {
-      toast.error("Network error!");
+      console.error("Update error:", err);
+      const errorMsg = err.response?.data?.message || "Network error!";
+      toast.error(errorMsg);
     }
   };
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios"; // ✅ Added Axios
 
 const ContactList = () => {
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost/vayuhu_backend";
@@ -9,19 +10,28 @@ const ContactList = () => {
   const [filter, setFilter] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
 
+  // ✅ Retrieve Bearer Token for Authorization
+  const token = localStorage.getItem("token");
+
   // Fetch contact data
   useEffect(() => {
     const fetchContacts = async () => {
       try {
-        const response = await fetch(`${API_BASE}/get_contacts.php`);
-        const data = await response.json();
-        setContacts(data || []);
+        // ✅ Switched to Axios with Authorization Header
+        const response = await axios.get(`${API_BASE}/get_contacts.php`, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+          },
+        });
+        
+        // Axios stores the response body in .data
+        setContacts(response.data || []);
       } catch (error) {
         console.error("Error fetching contacts:", error);
       }
     };
     fetchContacts();
-  }, [API_BASE]);
+  }, [API_BASE, token]);
 
   // Filter by status
   const filteredContacts = contacts.filter((contact) => {

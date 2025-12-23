@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
+import axios from "axios"; // ✅ Added Axios
 import "react-toastify/dist/ReactToastify.css";
 import UserProfileModal from "./UserProfileModal";
 import UserComments from "./UserComments";
@@ -18,6 +19,9 @@ const UserList = () => {
   const [previewImage, setPreviewImage] = useState(null);
   const [selectedCommentUser, setSelectedCommentUser] = useState(null);
 
+  // ✅ Retrieve token from localStorage
+  const token = localStorage.getItem("token");
+
   const statusColors = {
     Pending: "text-yellow-600 bg-yellow-100",
     Ongoing: "text-blue-600 bg-blue-100",
@@ -25,20 +29,28 @@ const UserList = () => {
     Closed: "text-green-600 bg-green-100",
   };
 
+  // ✅ Fetch users using Axios with Bearer Token
   const fetchUsers = async () => {
     try {
-      const response = await fetch(`${API_BASE}/get_users.php`);
-      const data = await response.json();
-      setUsers(data.users || []);
+      const response = await axios.get(`${API_BASE}/get_users.php`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+      // Axios automatically parses JSON into response.data
+      setUsers(response.data.users || []);
     } catch (error) {
-      toast.error("Failed to load users");
+      console.error("Fetch error:", error);
+      const errorMsg = error.response?.data?.message || "Failed to load users";
+      toast.error(errorMsg);
     }
   };
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [token]);
 
+  // ✅ Handle save using Axios with Bearer Token
   const handleSaveUser = async (updatedData) => {
     try {
       const formData = new FormData();
@@ -52,19 +64,25 @@ const UserList = () => {
       if (updatedData.profilePic)
         formData.append("profilePic", updatedData.profilePic);
 
-      const response = await fetch(`${API_BASE}/update_user.php`, {
-        method: "POST",
-        body: formData,
+      const response = await axios.post(`${API_BASE}/update_user.php`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
       });
 
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         toast.success("User updated successfully!");
         fetchUsers();
         setSelectedUser(null);
-      } else toast.error(data.message || "Failed to update user.");
+      } else {
+        toast.error(data.message || "Failed to update user.");
+      }
     } catch (error) {
-      toast.error("Something went wrong!");
+      console.error("Update error:", error);
+      const errorMsg = error.response?.data?.message || "Something went wrong!";
+      toast.error(errorMsg);
     }
   };
 

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { toast } from "react-toastify";
+import axios from "axios"; // ✅ Added Axios
 import { User, Mail, Phone, MessageSquare } from "lucide-react";
 import VirtualOfficeBookingModal from "./VirtualOfficeBookingModal";
 
@@ -11,6 +12,9 @@ const VirtualOfficeForm = () => {
   const nameInputRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // ✅ Retrieve Bearer Token
+  const token = localStorage.getItem("token");
 
   // ----------------------------------
   // Submit Form
@@ -30,18 +34,19 @@ const VirtualOfficeForm = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(
+      // ✅ Using Axios with Authorization Header
+      const response = await axios.post(
         `${API_BASE}/add_virtual_office_enquiry.php`,
+        payload,
         {
-          method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: token ? `Bearer ${token}` : "",
           },
-          body: JSON.stringify(payload),
         }
       );
 
-      const data = await response.json();
+      const data = response.data; // Axios automatically parses JSON
 
       if (data.status === "success") {
         toast.success(data.message || "Enquiry submitted successfully");
@@ -51,7 +56,8 @@ const VirtualOfficeForm = () => {
       }
     } catch (error) {
       console.error("Enquiry submit error:", error);
-      toast.error("Network error. Please try again.");
+      const errorMsg = error.response?.data?.message || "Network error. Please try again.";
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
